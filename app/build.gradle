@@ -19,7 +19,7 @@ def getVersionCode = { ->
         return Integer.parseInt(stdout.toString().trim())
     }
     catch (ignored) {
-        return -1;
+        return -1
     }
 }
 
@@ -33,13 +33,14 @@ def getVersionName = { ->
         return stdout.toString().trim()
     }
     catch (ignored) {
-        return null;
+        return null
     }
 }
 
 android {
     compileSdk 35
     buildToolsVersion = '35.0.0'
+
     defaultConfig {
         applicationId "net.typeblog.shelter"
         minSdkVersion 24
@@ -48,33 +49,63 @@ android {
         versionName getVersionName()
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
+
+    /*
+     * Release signing
+     *
+     * مقادیر از Environment Variables دریافت می‌شوند.
+     * بنابراین اطلاعات حساس داخل Git repository قرار نمی‌گیرد.
+     */
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
+            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+            keyAlias System.getenv("ANDROID_KEY_ALIAS")
+            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
+
+            signingConfig signingConfigs.release
+
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+
     applicationVariants.all { variant ->
         if (variant.name == "debug") {
-            variant.outputs.each { o -> o.versionCodeOverride = System.currentTimeSeconds() }
+            variant.outputs.each { o ->
+                o.versionCodeOverride = System.currentTimeSeconds()
+            }
         }
     }
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
     }
+
     lint {
-        disable 'MissingTranslation', 'ExtraTranslation', 'GoogleAppIndexingWarning', 'InvalidFragmentVersionForActivityResult'
+        disable 'MissingTranslation',
+                'ExtraTranslation',
+                'GoogleAppIndexingWarning',
+                'InvalidFragmentVersionForActivityResult'
     }
+
     buildFeatures {
         aidl true
     }
+
     namespace 'net.typeblog.shelter'
 }
 
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
+
     implementation 'androidx.legacy:legacy-support-core-ui:1.0.0'
     implementation 'androidx.fragment:fragment:1.8.4'
     implementation 'androidx.appcompat:appcompat:1.7.0'
@@ -82,9 +113,19 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.localbroadcastmanager:localbroadcastmanager:1.1.0'
-    debugImplementation project(path: ':setup-wizard-lib', configuration: 'gingerbreadCompatDebugRuntimeElements')
-    releaseImplementation project(path: ':setup-wizard-lib', configuration: 'gingerbreadCompatReleaseRuntimeElements')
+
+    debugImplementation project(
+        path: ':setup-wizard-lib',
+        configuration: 'gingerbreadCompatDebugRuntimeElements'
+    )
+
+    releaseImplementation project(
+        path: ':setup-wizard-lib',
+        configuration: 'gingerbreadCompatReleaseRuntimeElements'
+    )
+
     testImplementation 'junit:junit:4.13.2'
+
     androidTestImplementation 'androidx.test:runner:1.6.0-alpha04'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.0-alpha01'
 }
