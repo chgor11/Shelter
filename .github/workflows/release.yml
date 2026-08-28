@@ -8,20 +8,21 @@ permissions:
 
 jobs:
   release:
-    name: Build, Sign and Release APK
+    name: Build, Sign and Release
     runs-on: ubuntu-latest
 
     steps:
+
       # --------------------------------------------------
-      # 1. دریافت سورس
+      # 1. دریافت سورس پروژه
       # --------------------------------------------------
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       # --------------------------------------------------
-      # 2. نصب Java
+      # 2. نصب Java 17
       # --------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -43,11 +44,23 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shelter.keystore"
-
           chmod 600 "$RUNNER_TEMP/shelter.keystore"
 
       # --------------------------------------------------
-      # 5. Build و Sign کردن Release
+      # 5. بررسی وجود keystore
+      # --------------------------------------------------
+      - name: Verify keystore
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          keytool -list \
+            -keystore "$RUNNER_TEMP/shelter.keystore" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS"
+
+      # --------------------------------------------------
+      # 6. Build کردن Release با امضای خودمان
       # --------------------------------------------------
       - name: Build signed release APK
         env:
@@ -57,52 +70,79 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-
-          ./gradlew clean assembleRelease \
-            -Pandroid.injected.signing.store.file="$ANDROID_KEYSTORE_PATH" \
-            -Pandroid.injected.signing.store.password="$ANDROID_KEYSTORE_PASSWORD" \
-            -Pandroid.injected.signing.key.alias="$ANDROID_KEY_ALIAS" \
-            -Pandroid.injected.signing.key.password="$ANDROID_KEY_PASSWORD"
+          ./gradlew clean assembleRelease
 
       # --------------------------------------------------
-      # 6. پیدا کردن APK
+      # 7. پیدا کردن APK
       # --------------------------------------------------
       - name: Locate APK
         run: |
-          find app/build/outputs/apk/release -type f -name "*.apk" -print
+          echo "Release APK files:"
+          find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            -print
 
       # --------------------------------------------------
-      # 7. بررسی امضای APK
+      # 8. بررسی امضای APK
       # --------------------------------------------------
       - name: Verify APK signature
         run: |
-          APK=$(find app/build/outputs/apk/release -type f -name "*.apk" | head -n 1)
+          APK=$(find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERROR: APK not found!"
+            echo "ERROR: Release APK was not found."
             exit 1
           fi
 
           echo "APK: $APK"
 
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify \
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          if [ ! -f "$APKSIGNER" ]; then
+            echo "ERROR: apksigner was not found."
+            exit 1
+          fi
+
+          echo ""
+          echo "===== Signature verification ====="
+
+          "$APKSIGNER" verify \
             --verbose \
             "$APK"
 
-          $ANDROID_HOME/build-tools/35.0.0/apksigner verify \
+          echo ""
+          echo "===== Certificate information ====="
+
+          "$APKSIGNER" verify \
             --print-certs \
             "$APK"
 
       # --------------------------------------------------
-      # 8. آماده‌سازی فایل Release
+      # 9. آماده‌سازی Release
       # --------------------------------------------------
-      - name: Prepare release files
+      - name: Prepare release
         run: |
           mkdir -p release
 
-          APK=$(find app/build/outputs/apk/release -type f -name "*.apk" | head -n 1)
+          APK=$(find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
 
-          cp "$APK" release/Shelter-${GITHUB_SHA::7}.apk
+          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle \
+            | sed 's/.*versionName //' \
+            | tr -d '"' \
+            || true)
+
+          if [ -z "$VERSION_NAME" ]; then
+            VERSION_NAME="build-${GITHUB_RUN_NUMBER}"
+          fi
+
+          cp "$APK" "release/Shelter-${VERSION_NAME}.apk"
 
           cd release
 
@@ -112,18 +152,26 @@ jobs:
           ls -lh
 
           echo ""
-          echo "SHA256:"
+          echo "SHA-256:"
           cat SHA256SUMS.txt
 
       # --------------------------------------------------
-      # 9. ایجاد GitHub Release
+      # 10. ایجاد GitHub Release
       # --------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Shelter Release ${{ github.run_number }}
+          tag_name: "v${{ github.run_number }}"
+          name: "Shelter Release v${{ github.run_number }}"
           generate_release_notes: true
           files: |
             release/*.apk
             release/SHA256SUMS.txt
+
+      # --------------------------------------------------
+      # 11. پاک کردن keystore
+      # --------------------------------------------------
+      - name: Delete temporary keystore
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/shelter.keystore"
