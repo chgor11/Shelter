@@ -14,15 +14,36 @@ jobs:
     steps:
 
       # --------------------------------------------------
-      # 1. دریافت سورس پروژه
+      # 1. دریافت سورس و Submoduleها
       # --------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          submodules: recursive
 
       # --------------------------------------------------
-      # 2. نصب Java 17
+      # 2. بررسی SetupWizardLibrary
+      # --------------------------------------------------
+      - name: Verify SetupWizardLibrary submodule
+        run: |
+          echo "===== Submodule status ====="
+          git submodule status
+
+          echo ""
+          echo "===== SetupWizardLibrary HEAD ====="
+          git -C libs/SetupWizardLibrary rev-parse HEAD
+
+          echo ""
+          echo "===== SetupWizardLibrary files ====="
+          ls -la libs/SetupWizardLibrary
+
+          echo ""
+          echo "===== Library directory ====="
+          ls -la libs/SetupWizardLibrary/library
+
+      # --------------------------------------------------
+      # 3. نصب Java 17
       # --------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -31,13 +52,13 @@ jobs:
           java-version: '17'
 
       # --------------------------------------------------
-      # 3. تنظیم Gradle
+      # 4. تنظیم Gradle
       # --------------------------------------------------
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
       # --------------------------------------------------
-      # 4. Decode کردن keystore
+      # 5. Decode کردن keystore
       # --------------------------------------------------
       - name: Decode signing keystore
         env:
@@ -47,7 +68,7 @@ jobs:
           chmod 600 "$RUNNER_TEMP/shelter.keystore"
 
       # --------------------------------------------------
-      # 5. بررسی وجود keystore
+      # 6. بررسی keystore
       # --------------------------------------------------
       - name: Verify keystore
         env:
@@ -60,7 +81,7 @@ jobs:
             -alias "$KEY_ALIAS"
 
       # --------------------------------------------------
-      # 6. Build کردن Release با امضای خودمان
+      # 7. Build و Sign کردن Release
       # --------------------------------------------------
       - name: Build signed release APK
         env:
@@ -73,18 +94,19 @@ jobs:
           ./gradlew clean assembleRelease
 
       # --------------------------------------------------
-      # 7. پیدا کردن APK
+      # 8. پیدا کردن APK
       # --------------------------------------------------
       - name: Locate APK
         run: |
-          echo "Release APK files:"
+          echo "===== Release APK files ====="
+
           find app/build/outputs/apk/release \
             -type f \
             -name "*.apk" \
             -print
 
       # --------------------------------------------------
-      # 8. بررسی امضای APK
+      # 9. بررسی امضای APK
       # --------------------------------------------------
       - name: Verify APK signature
         run: |
@@ -122,7 +144,7 @@ jobs:
             "$APK"
 
       # --------------------------------------------------
-      # 9. آماده‌سازی Release
+      # 10. آماده‌سازی فایل Release
       # --------------------------------------------------
       - name: Prepare release
         run: |
@@ -133,10 +155,7 @@ jobs:
             -name "*.apk" \
             | head -n 1)
 
-          VERSION_NAME=$(grep -m1 'versionName' app/build.gradle \
-            | sed 's/.*versionName //' \
-            | tr -d '"' \
-            || true)
+          VERSION_NAME=$(git describe --tags --dirty 2>/dev/null || true)
 
           if [ -z "$VERSION_NAME" ]; then
             VERSION_NAME="build-${GITHUB_RUN_NUMBER}"
@@ -148,15 +167,15 @@ jobs:
 
           sha256sum *.apk > SHA256SUMS.txt
 
-          echo "Release files:"
+          echo "===== Release files ====="
           ls -lh
 
           echo ""
-          echo "SHA-256:"
+          echo "===== SHA-256 ====="
           cat SHA256SUMS.txt
 
       # --------------------------------------------------
-      # 10. ایجاد GitHub Release
+      # 11. ایجاد GitHub Release
       # --------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -169,7 +188,7 @@ jobs:
             release/SHA256SUMS.txt
 
       # --------------------------------------------------
-      # 11. پاک کردن keystore
+      # 12. حذف keystore موقت
       # --------------------------------------------------
       - name: Delete temporary keystore
         if: always()
