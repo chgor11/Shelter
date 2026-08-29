@@ -263,7 +263,7 @@ public class Utility {
             );
         }
     
-        manager.addUserRestriction(
+        manager.clearUserRestriction(
                 adminComponent,
                 UserManager.ALLOW_PARENT_PROFILE_APP_LINKING
         );
