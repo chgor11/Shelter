@@ -21,6 +21,9 @@ public class LocalStorageManager {
 
     private static final String LIST_DIVIDER = ",";
 
+    public static final String PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD =
+        "allow_work_to_personal_clipboard";
+
     private static LocalStorageManager sInstance = null;
     private SharedPreferences mPrefs = null;
 
