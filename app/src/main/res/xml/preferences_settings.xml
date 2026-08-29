@@ -19,6 +19,12 @@
             android:key="settings_payment_stub"
             android:title="@string/settings_payment_stub"
             android:summary="@string/settings_payment_stub_desc" />
+        
+        <androidx.preference.CheckBoxPreference
+            android:key="settings_work_to_personal_clipboard"
+            android:title="@string/settings_work_to_personal_clipboard"
+            android:summary="@string/settings_work_to_personal_clipboard_desc"
+            android:defaultValue="false" />
 
     </androidx.preference.PreferenceCategory>
 
