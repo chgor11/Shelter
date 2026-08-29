@@ -137,4 +137,23 @@ public class SettingsManager {
                 enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP);
     }
+
+    public void setWorkToPersonalClipboardEnabled(boolean enabled) {
+        mStorage.setBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD,
+                enabled
+        );
+    
+        syncSettingsToProfileBool(
+                LocalStorageManager.PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD,
+                enabled
+        );
+    }
+    
+    public boolean getWorkToPersonalClipboardEnabled() {
+        return mStorage.getBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD
+        );
+    }
+
 }
