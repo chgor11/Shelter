@@ -13,8 +13,6 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
-import android.os.UserHandle;
-import android.os.UserManager;
 
 import androidx.annotation.Nullable;
 
@@ -302,12 +300,6 @@ public class ShelterService extends Service {
         mPackageManager = getPackageManager();
         mIsProfileOwner = mPolicyManager.isProfileOwnerApp(getPackageName());
         mAdminComponent = new ComponentName(getApplicationContext(), ShelterDeviceAdminReceiver.class);
-        if (mIsProfileOwner) {
-            UserHandle workUser = getWorkProfileUserHandle();
-            if (workUser != null) {
-                applySecurityRestrictions(workUser);
-            }
-        }
     }
 
     @Nullable
@@ -339,33 +331,5 @@ public class ShelterService extends Service {
                 getString(R.string.service_title),
                 getString(R.string.service_desc),
                 R.drawable.ic_notification_white_24dp));
-    }
-    private UserHandle getWorkProfileUserHandle() {
-        UserManager um = (UserManager) getSystemService(USER_SERVICE);
-        if (um == null) return null;
-        for (UserHandle uh : um.getUserProfiles()) {
-            if (um.getUserInfo(uh.getIdentifier()).isManagedProfile()) {
-                return uh;
-            }
-        }
-        return null;
-    }
-    
-    private void applySecurityRestrictions(UserHandle user) {
-        if (mPolicyManager == null || mAdminComponent == null) return;
-        try {
-            mPolicyManager.addUserRestriction(mAdminComponent,
-                    DevicePolicyManager.USER_RESTRICTION_DISALLOW_DEBUGGING_FEATURES,
-                    user);
-            mPolicyManager.addUserRestriction(mAdminComponent,
-                    DevicePolicyManager.USER_RESTRICTION_DISALLOW_SCREEN_CAPTURE,
-                    user);
-            mPolicyManager.addUserRestriction(mAdminComponent,
-                    DevicePolicyManager.USER_RESTRICTION_DISALLOW_CONFIG_SYNC,
-                    user);
-            android.util.Log.i("ShelterService", "Security restrictions applied to work profile");
-        } catch (SecurityException e) {
-            android.util.Log.e("ShelterService", "Failed to apply security restrictions", e);
-        }
     }
 }
