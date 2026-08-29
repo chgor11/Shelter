@@ -280,6 +280,14 @@ public class Utility {
                     true
             );
         }
+
+        // Disable backup and restore for the Work Profile.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.setBackupServiceEnabled(
+                    adminComponent,
+                    false
+            );
+        }
     }
 
     // Detect if the device is MIUI
