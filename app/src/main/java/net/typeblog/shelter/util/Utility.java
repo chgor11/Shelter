@@ -570,7 +570,13 @@ public class Utility {
                 Build.VERSION.SDK_INT < Build.VERSION_CODES.M
                         || manager.getScreenCaptureDisabled(adminComponent);
     
-        return debuggingDisabled && screenCaptureDisabled;
+        boolean backupDisabled =
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                        || !manager.isBackupServiceEnabled(adminComponent);
+    
+        return debuggingDisabled
+                && screenCaptureDisabled
+                && backupDisabled;
     }
 
     // A wrapper over arbitrary ActivityResultContract that provides
