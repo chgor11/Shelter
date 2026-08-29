@@ -631,6 +631,7 @@ public class DummyActivity extends Activity {
             // Refresh profile policies because
             // settings may have been changed
             Utility.enforceWorkProfilePolicies(this);
+            Utility.enforceUserRestrictions(this);
         }
         finish();
     }
