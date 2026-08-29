@@ -282,6 +282,12 @@ public class Utility {
                     true
             );
         }
+
+        if (!verifySecurityPolicies(context)) {
+            throw new IllegalStateException(
+                    "Required security policies could not be enforced"
+            );
+        }
     }
 
     // Detect if the device is MIUI
@@ -539,6 +545,32 @@ public class Utility {
                 .setContentText(desc)
                 .setSmallIcon(icon)
                 .build();
+    }
+
+    public static boolean verifySecurityPolicies(Context context) {
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        Bundle restrictions =
+                manager.getUserRestrictions(adminComponent);
+    
+        boolean debuggingDisabled =
+                restrictions.getBoolean(
+                        UserManager.DISALLOW_DEBUGGING_FEATURES,
+                        false
+                );
+    
+        boolean screenCaptureDisabled =
+                Build.VERSION.SDK_INT < Build.VERSION_CODES.M
+                        || manager.getScreenCaptureDisabled(adminComponent);
+    
+        return debuggingDisabled && screenCaptureDisabled;
     }
 
     // A wrapper over arbitrary ActivityResultContract that provides
