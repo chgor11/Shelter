@@ -547,7 +547,7 @@ public class Utility {
                 .setSmallIcon(icon)
                 .build();
     }
-    /*
+    
     public static boolean verifySecurityPolicies(Context context) {
         DevicePolicyManager manager =
                 context.getSystemService(DevicePolicyManager.class);
@@ -579,7 +579,7 @@ public class Utility {
                 && screenCaptureDisabled
                 && backupDisabled;
     }
-    */
+    
     // A wrapper over arbitrary ActivityResultContract that provides
     // hardcoded input parameters and do not accept input with launch()
     public static class ActivityResultContractInputWrapper<I, O, T extends ActivityResultContract<I, O>>
