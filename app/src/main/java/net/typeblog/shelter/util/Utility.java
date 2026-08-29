@@ -297,6 +297,25 @@ public class Utility {
                     false
             );
         }
+
+        // Control clipboard export from Work Profile to Personal Profile.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            boolean allowWorkToPersonalClipboard =
+                    SettingsManager.getInstance()
+                            .getWorkToPersonalClipboardEnabled();
+        
+            if (allowWorkToPersonalClipboard) {
+                manager.clearUserRestriction(
+                        adminComponent,
+                        UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
+                );
+            } else {
+                manager.addUserRestriction(
+                        adminComponent,
+                        UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
+                );
+            }
+        }
     }
 
     // Detect if the device is MIUI
