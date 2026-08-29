@@ -255,8 +255,6 @@ public class Utility {
         );
     
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            // Polyfill for UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
-            // Don't use this on Android Oreo and later, it will crash
             manager.setSecureSetting(
                     adminComponent,
                     Settings.Secure.INSTALL_NON_MARKET_APPS,
@@ -280,12 +278,6 @@ public class Utility {
             manager.setScreenCaptureDisabled(
                     adminComponent,
                     true
-            );
-        }
-
-        if (!verifySecurityPolicies(context)) {
-            throw new IllegalStateException(
-                    "Required security policies could not be enforced"
             );
         }
     }
