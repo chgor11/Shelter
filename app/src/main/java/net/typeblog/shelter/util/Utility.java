@@ -230,19 +230,58 @@ public class Utility {
     }
 
     public static void enforceUserRestrictions(Context context) {
-        DevicePolicyManager manager = context.getSystemService(DevicePolicyManager.class);
-        ComponentName adminComponent = new ComponentName(context.getApplicationContext(), ShelterDeviceAdminReceiver.class);
-        manager.clearUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_APPS);
-        manager.clearUserRestriction(adminComponent, UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES);
-        manager.clearUserRestriction(adminComponent, UserManager.DISALLOW_UNINSTALL_APPS);
-
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        manager.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_INSTALL_APPS
+        );
+    
+        manager.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
+        );
+    
+        manager.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_UNINSTALL_APPS
+        );
+    
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             // Polyfill for UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
             // Don't use this on Android Oreo and later, it will crash
-            manager.setSecureSetting(adminComponent, Settings.Secure.INSTALL_NON_MARKET_APPS, "1");
+            manager.setSecureSetting(
+                    adminComponent,
+                    Settings.Secure.INSTALL_NON_MARKET_APPS,
+                    "1"
+            );
         }
-
-        manager.addUserRestriction(adminComponent, UserManager.ALLOW_PARENT_PROFILE_APP_LINKING);
+    
+        manager.addUserRestriction(
+                adminComponent,
+                UserManager.ALLOW_PARENT_PROFILE_APP_LINKING
+        );
+    
+        // Disable debugging features in the Work Profile.
+        manager.addUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_DEBUGGING_FEATURES
+        );
+    
+        // Disable screenshots and screen recording in the Work Profile.
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            manager.setScreenCaptureDisabled(
+                    adminComponent,
+                    true
+            );
+        }
     }
 
     // Detect if the device is MIUI
