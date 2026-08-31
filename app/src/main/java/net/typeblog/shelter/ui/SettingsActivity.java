@@ -5,8 +5,8 @@ import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import net.typeblog.shelter.R;
-import android.hardware.biometrics.BiometricManager;
-import android.hardware.biometrics.BiometricPrompt;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
 import java.util.concurrent.Executor;
 
 public class SettingsActivity extends AppCompatActivity {
