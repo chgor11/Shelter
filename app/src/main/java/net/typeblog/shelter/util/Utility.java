@@ -246,7 +246,6 @@ public class Utility {
                         .getWorkProfileAppInstallUninstallEnabled();
         
         if (allowAppInstallUninstall) {
-        
             manager.clearUserRestriction(
                     adminComponent,
                     UserManager.DISALLOW_INSTALL_APPS
@@ -261,9 +260,7 @@ public class Utility {
                     adminComponent,
                     UserManager.DISALLOW_UNINSTALL_APPS
             );
-        
         } else {
-        
             manager.addUserRestriction(
                     adminComponent,
                     UserManager.DISALLOW_INSTALL_APPS
