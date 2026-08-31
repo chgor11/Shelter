@@ -91,6 +91,8 @@
     <string name="settings_patreon_url" translatable="false">https://www.patreon.com/PeterCxy</string>
     <string name="settings_work_to_personal_clipboard"> Allow Work Profile to copy to Personal Profile </string>
     <string name="settings_work_to_personal_clipboard_desc"> Allow clipboard contents from the Work Profile to be pasted into the Personal Profile. </string>
+    <string name="settings_work_profile_app_install_uninstall"> Allow app installation and uninstallation </string>
+    <string name="settings_work_profile_app_install_uninstall_desc"> Allow installing and uninstalling applications in the Work Profile </string>
 
     <!-- Toast Long Texts -->
     <string name="provision_finished">Shelter setup complete. Now restarting Shelter. If Shelter didn\'t start automatically, you may launch it again from your launcher.</string>
