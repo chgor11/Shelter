@@ -24,6 +24,9 @@ public class LocalStorageManager {
     public static final String PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD =
         "allow_work_to_personal_clipboard";
 
+    public static final String PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL =
+            "allow_work_profile_app_install_uninstall";
+
     private static LocalStorageManager sInstance = null;
     private SharedPreferences mPrefs = null;
 
