@@ -42,6 +42,7 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
     private static final String SETTINGS_SKIP_FOREGROUND = "settings_dont_freeze_foreground";
     private static final String SETTINGS_PAYMENT_STUB = "settings_payment_stub";
     private static final String SETTINGS_WORK_TO_PERSONAL_CLIPBOARD = "settings_work_to_personal_clipboard";
+    private static final String SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL = "settings_work_profile_app_install_uninstall";
 
     private static final int[] AUTO_FREEZE_DELAY_SECONDS = new int[]{0, 60, 2 * 60, 5 * 60};
 
@@ -54,6 +55,7 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
     private CheckBoxPreference mPrefSkipForeground = null;
     private CheckBoxPreference mPrefPaymentStub = null;
     private CheckBoxPreference mPrefWorkToPersonalClipboard = null;
+    private CheckBoxPreference mPrefWorkProfileAppInstallUninstall = null;
 
     private DropDownPreference mPrefAutoFreezeDelay = null;
 
