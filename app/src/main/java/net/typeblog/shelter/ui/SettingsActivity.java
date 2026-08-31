@@ -1,12 +1,10 @@
 package net.typeblog.shelter.ui;
 
-import android.app.Activity;
 import android.app.KeyguardManager;
 import android.content.Context;
-import android.hardware.biometrics.BiometricPrompt;
+import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.CancellationSignal;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
@@ -14,11 +12,9 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import net.typeblog.shelter.R;
 
-import java.util.concurrent.Executor;
-
 public class SettingsActivity extends AppCompatActivity {
 
-    private CancellationSignal cancellationSignal;
+    private static final int REQUEST_DEVICE_CREDENTIAL = 1001;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -28,21 +24,19 @@ public class SettingsActivity extends AppCompatActivity {
 
         super.onCreate(savedInstanceState);
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            authenticateForSettings();
-        } else {
-            finish();
-        }
+        authenticateForSettings();
     }
 
     private void authenticateForSettings() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
             finish();
             return;
         }
 
         KeyguardManager keyguardManager =
-                (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+                (KeyguardManager) getSystemService(
+                        Context.KEYGUARD_SERVICE
+                );
 
         if (keyguardManager == null
                 || !keyguardManager.isKeyguardSecure()) {
@@ -50,56 +44,45 @@ public class SettingsActivity extends AppCompatActivity {
             return;
         }
 
-        Executor executor = getMainExecutor();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            Intent intent =
+                    keyguardManager.createConfirmDeviceCredentialIntent(
+                            "Authentication required",
+                            "Enter your device credential to open Shelter settings"
+                    );
 
-        BiometricPrompt.AuthenticationCallback callback =
-                new BiometricPrompt.AuthenticationCallback() {
+            if (intent == null) {
+                finish();
+                return;
+            }
 
-                    @Override
-                    public void onAuthenticationSucceeded(
-                            BiometricPrompt.AuthenticationResult result) {
-                        super.onAuthenticationSucceeded(result);
-                        showSettings();
-                    }
+            startActivityForResult(
+                    intent,
+                    REQUEST_DEVICE_CREDENTIAL
+            );
+        }
+    }
 
-                    @Override
-                    public void onAuthenticationFailed() {
-                        super.onAuthenticationFailed();
-                    }
+    @Override
+    protected void onActivityResult(
+            int requestCode,
+            int resultCode,
+            @Nullable Intent data) {
 
-                    @Override
-                    public void onAuthenticationError(
-                            int errorCode,
-                            CharSequence errString) {
-                        super.onAuthenticationError(
-                                errorCode,
-                                errString
-                        );
-
-                        finish();
-                    }
-                };
-
-        BiometricPrompt biometricPrompt =
-                new BiometricPrompt.Builder(this)
-                        .setTitle("Authentication required")
-                        .setSubtitle(
-                                "Authenticate to open Shelter settings"
-                        )
-                        .setNegativeButton(
-                                "Cancel",
-                                executor,
-                                (dialog, which) -> finish()
-                        )
-                        .build();
-
-        cancellationSignal = new CancellationSignal();
-
-        biometricPrompt.authenticate(
-                cancellationSignal,
-                executor,
-                callback
+        super.onActivityResult(
+                requestCode,
+                resultCode,
+                data
         );
+
+        if (requestCode == REQUEST_DEVICE_CREDENTIAL) {
+
+            if (resultCode == RESULT_OK) {
+                showSettings();
+            } else {
+                finish();
+            }
+        }
     }
 
     private void showSettings() {
@@ -119,15 +102,5 @@ public class SettingsActivity extends AppCompatActivity {
     public boolean onSupportNavigateUp() {
         finish();
         return true;
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (cancellationSignal != null) {
-            cancellationSignal.cancel();
-            cancellationSignal = null;
-        }
-
-        super.onDestroy();
     }
 }
