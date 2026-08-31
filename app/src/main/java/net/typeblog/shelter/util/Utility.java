@@ -241,20 +241,44 @@ public class Utility {
                         ShelterDeviceAdminReceiver.class
                 );
     
-        manager.clearUserRestriction(
-                adminComponent,
-                UserManager.DISALLOW_INSTALL_APPS
-        );
-    
-        manager.clearUserRestriction(
-                adminComponent,
-                UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
-        );
-    
-        manager.clearUserRestriction(
-                adminComponent,
-                UserManager.DISALLOW_UNINSTALL_APPS
-        );
+        boolean allowAppInstallUninstall =
+                SettingsManager.getInstance()
+                        .getWorkProfileAppInstallUninstallEnabled();
+        
+        if (allowAppInstallUninstall) {
+        
+            manager.clearUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_INSTALL_APPS
+            );
+        
+            manager.clearUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
+            );
+        
+            manager.clearUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_UNINSTALL_APPS
+            );
+        
+        } else {
+        
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_INSTALL_APPS
+            );
+        
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_INSTALL_UNKNOWN_SOURCES
+            );
+        
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_UNINSTALL_APPS
+            );
+        }
 
         manager.clearUserRestriction(
                 adminComponent,
