@@ -254,6 +254,11 @@ public class Utility {
                 adminComponent,
                 UserManager.DISALLOW_UNINSTALL_APPS
         );
+
+        manager.clearUserRestriction(
+                adminComponent,
+                UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
+        );
     
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             manager.setSecureSetting(
