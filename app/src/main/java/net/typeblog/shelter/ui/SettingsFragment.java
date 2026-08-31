@@ -135,6 +135,16 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
                 mManager.getWorkToPersonalClipboardEnabled());
     
         mPrefWorkToPersonalClipboard.setOnPreferenceChangeListener(this);
+
+        // allow install or unistall app
+        mPrefWorkProfileAppInstallUninstall =
+                (CheckBoxPreference) findPreference(
+                        SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL);
+        
+        mPrefWorkProfileAppInstallUninstall.setChecked(
+                mManager.getWorkProfileAppInstallUninstallEnabled());
+        
+        mPrefWorkProfileAppInstallUninstall.setOnPreferenceChangeListener(this);
     
         // === Services ===
     
@@ -264,6 +274,12 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
     
         } else if (preference == mPrefWorkToPersonalClipboard) {
             mManager.setWorkToPersonalClipboardEnabled((boolean) newState);
+            return true;
+
+        } else if (preference == mPrefWorkProfileAppInstallUninstall) {
+            mManager.setWorkProfileAppInstallUninstallEnabled(
+                    (boolean) newState
+            );
             return true;
     
         } else if (preference == mPrefAutoFreezeService) {
