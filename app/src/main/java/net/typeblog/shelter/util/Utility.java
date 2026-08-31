@@ -50,6 +50,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.Collections;
 
 public class Utility {
     // Determine if the current app is the owner of the current profile
@@ -292,6 +293,13 @@ public class Utility {
             manager.setBackupServiceEnabled(
                     adminComponent,
                     false
+            );
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            manager.setCrossProfilePackages(
+                    adminComponent,
+                    Collections.emptySet()
             );
         }
 
