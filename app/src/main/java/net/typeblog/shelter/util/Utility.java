@@ -278,14 +278,6 @@ public class Utility {
                 adminComponent,
                 UserManager.DISALLOW_DEBUGGING_FEATURES
         );
-
-        // Disable sharing from the personal profile into the work profile.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            manager.addUserRestriction(
-                    adminComponent,
-                    UserManager.DISALLOW_SHARE_INTO_MANAGED_PROFILE
-            );
-        }
     
         // Disable screenshots and screen recording in the Work Profile.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
