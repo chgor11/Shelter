@@ -156,4 +156,22 @@ public class SettingsManager {
         );
     }
 
+    public void setWorkProfileAppInstallUninstallEnabled(boolean enabled) {
+        mStorage.setBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL,
+                enabled
+        );
+    
+        syncSettingsToProfileBool(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL,
+                enabled
+        );
+    }
+    
+    public boolean getWorkProfileAppInstallUninstallEnabled() {
+        return mStorage.getBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL
+        );
+    }
+
 }
