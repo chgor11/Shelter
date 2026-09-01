@@ -58,20 +58,33 @@ android {
      */
     signingConfigs {
         release {
-            storeFile file(System.getenv("ANDROID_KEYSTORE_PATH"))
-            storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
-            keyAlias System.getenv("ANDROID_KEY_ALIAS")
-            keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    
+            // در Build unsigned هیچ keystoreای وجود ندارد.
+            // فقط در صورتی signing configuration تنظیم می‌شود
+            // که مسیر keystore واقعاً در Environment موجود باشد.
+            if (keystorePath != null && !keystorePath.trim().isEmpty()) {
+                storeFile file(keystorePath)
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")
+                keyAlias System.getenv("ANDROID_KEY_ALIAS")
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD")
+            }
         }
     }
-
+    
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
-
-            signingConfig signingConfigs.release
-
+    
+            // اگر keystore در Environment موجود باشد، Release امضا می‌شود.
+            // در غیر این صورت APK به صورت unsigned تولید می‌شود.
+            def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+    
+            if (keystorePath != null && !keystorePath.trim().isEmpty()) {
+                signingConfig signingConfigs.release
+            }
+    
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
