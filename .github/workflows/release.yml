@@ -3,180 +3,543 @@ name: Build and Release Shelter
 on:
   workflow_dispatch:
 
+# اصل حداقل دسترسی:
+# هیچ Job به صورت پیش‌فرض اجازه نوشتن ندارد.
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: shelter-release
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build, Sign and Release
+
+  # ==========================================================
+  # 1. BUILD — بدون signing key
+  #
+  # خروجی این Job باید واقعاً unsigned باشد.
+  # ==========================================================
+  build:
+    name: Build unsigned APK
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
 
     steps:
 
-      # --------------------------------------------------
-      # 1. دریافت سورس و Submoduleها
-      # --------------------------------------------------
+      # --------------------------------------------------------
+      # Checkout
+      # --------------------------------------------------------
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           submodules: recursive
+          persist-credentials: false
 
-      # --------------------------------------------------
-      # 2. بررسی SetupWizardLibrary
-      # --------------------------------------------------
-      - name: Verify SetupWizardLibrary submodule
+      # --------------------------------------------------------
+      # بررسی وضعیت Repository
+      # --------------------------------------------------------
+      - name: Verify source
+        shell: bash
         run: |
-          echo "===== Submodule status ====="
-          git submodule status
+          set -euo pipefail
+
+          echo "===== Repository ====="
+          git rev-parse HEAD
 
           echo ""
+          echo "===== Branch / Ref ====="
+          git symbolic-ref --short -q HEAD || true
+          echo "${GITHUB_REF}"
+
+          echo ""
+          echo "===== Submodules ====="
+          git submodule status --recursive
+
+      # --------------------------------------------------------
+      # بررسی دقیق SetupWizardLibrary
+      # --------------------------------------------------------
+      - name: Verify SetupWizardLibrary
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LIB="libs/SetupWizardLibrary"
+
+          test -d "$LIB"
+
           echo "===== SetupWizardLibrary HEAD ====="
-          git -C libs/SetupWizardLibrary rev-parse HEAD
+          git -C "$LIB" rev-parse HEAD
 
           echo ""
-          echo "===== SetupWizardLibrary files ====="
-          ls -la libs/SetupWizardLibrary
+          echo "===== SetupWizardLibrary status ====="
+          git -C "$LIB" status --short
 
-          echo ""
-          echo "===== Library directory ====="
-          ls -la libs/SetupWizardLibrary/library
-
-      # --------------------------------------------------
-      # 3. نصب Java 17
-      # --------------------------------------------------
+      # --------------------------------------------------------
+      # Java 17
+      # --------------------------------------------------------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # --------------------------------------------------
-      # 4. تنظیم Gradle
-      # --------------------------------------------------
+      # --------------------------------------------------------
+      # Gradle
+      # --------------------------------------------------------
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      # --------------------------------------------------
-      # 5. Decode کردن keystore
-      # --------------------------------------------------
-      - name: Decode signing keystore
-        env:
-          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      # --------------------------------------------------------
+      # Build
+      #
+      # این Job هیچ signing secret ندارد.
+      #
+      # توجه:
+      # پروژه باید assembleRelease را بدون signingConfig اجرا کند.
+      # اگر پروژه خودش Release را امضا کند، این مرحله عمداً fail می‌شود
+      # تا APK امضاشده به عنوان "unsigned" منتشر نشود.
+      # --------------------------------------------------------
+      - name: Build release APK
+        shell: bash
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/shelter.keystore"
-          chmod 600 "$RUNNER_TEMP/shelter.keystore"
+          set -euo pipefail
 
-      # --------------------------------------------------
-      # 6. بررسی keystore
-      # --------------------------------------------------
-      - name: Verify keystore
-        env:
-          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        run: |
-          keytool -list \
-            -keystore "$RUNNER_TEMP/shelter.keystore" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS"
-
-      # --------------------------------------------------
-      # 7. Build و Sign کردن Release
-      # --------------------------------------------------
-      - name: Build signed release APK
-        env:
-          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/shelter.keystore
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: |
           chmod +x ./gradlew
+
           ./gradlew clean assembleRelease
 
-      # --------------------------------------------------
-      # 8. پیدا کردن APK
-      # --------------------------------------------------
+      # --------------------------------------------------------
+      # پیدا کردن APK
+      # --------------------------------------------------------
       - name: Locate APK
+        shell: bash
         run: |
-          echo "===== Release APK files ====="
+          set -euo pipefail
 
-          find app/build/outputs/apk/release \
-            -type f \
-            -name "*.apk" \
-            -print
-
-      # --------------------------------------------------
-      # 9. بررسی امضای APK
-      # --------------------------------------------------
-      - name: Verify APK signature
-        run: |
           APK=$(find app/build/outputs/apk/release \
             -type f \
             -name "*.apk" \
             | head -n 1)
 
           if [ -z "$APK" ]; then
-            echo "ERROR: Release APK was not found."
+            echo "ERROR: APK not found."
             exit 1
           fi
 
-          echo "APK: $APK"
+          echo "APK=$APK"
 
-          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-
-          if [ ! -f "$APKSIGNER" ]; then
-            echo "ERROR: apksigner was not found."
-            exit 1
-          fi
-
-          echo ""
-          echo "===== Signature verification ====="
-
-          "$APKSIGNER" verify \
-            --verbose \
-            "$APK"
-
-          echo ""
-          echo "===== Certificate information ====="
-
-          "$APKSIGNER" verify \
-            --print-certs \
-            "$APK"
-
-      # --------------------------------------------------
-      # 10. آماده‌سازی فایل Release
-      # --------------------------------------------------
-      - name: Prepare release
+      # --------------------------------------------------------
+      # اطمینان از اینکه APK واقعاً unsigned است
+      # --------------------------------------------------------
+      - name: Verify APK is unsigned
+        shell: bash
         run: |
-          mkdir -p release
+          set -euo pipefail
 
           APK=$(find app/build/outputs/apk/release \
             -type f \
             -name "*.apk" \
             | head -n 1)
 
-          VERSION_NAME=$(git describe --tags --dirty 2>/dev/null || true)
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
-          if [ -z "$VERSION_NAME" ]; then
-            VERSION_NAME="build-${GITHUB_RUN_NUMBER}"
+          if "$APKSIGNER" verify "$APK"; then
+            echo "ERROR: APK is already signed."
+            echo "The release build must produce a truly unsigned APK."
+            exit 1
           fi
 
-          cp "$APK" "release/Shelter-${VERSION_NAME}.apk"
+          echo "OK: APK is unsigned and can proceed to local signing."
+
+      # --------------------------------------------------------
+      # آماده‌سازی نسخه unsigned برای Release
+      # --------------------------------------------------------
+      - name: Prepare unsigned release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p unsigned-release
+
+          APK=$(find app/build/outputs/apk/release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          cp "$APK" \
+            "unsigned-release/Shelter-unsigned-${GITHUB_SHA::12}.apk"
+
+          sha256sum unsigned-release/*.apk \
+            > unsigned-release/SHA256SUMS-unsigned.txt
+
+          echo "===== Unsigned release files ====="
+          ls -lh unsigned-release
+
+          echo ""
+          echo "===== Unsigned SHA-256 ====="
+          cat unsigned-release/SHA256SUMS-unsigned.txt
+
+      # --------------------------------------------------------
+      # ذخیره APK unsigned برای Job بعدی
+      # --------------------------------------------------------
+      - name: Upload unsigned APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shelter-unsigned-apk
+          path: unsigned-release/*
+          if-no-files-found: error
+          retention-days: 1
+
+
+  # ==========================================================
+  # 2. SIGN
+  #
+  # این Job تنها جایی است که signing key وجود دارد.
+  #
+  # برای امضای محلی:
+  # APK موجود در unsigned-release همان فایل قابل امضا است.
+  #
+  # این Job همچنان نسخه signed را نیز تولید می‌کند تا Release
+  # فعلی Shelter بدون تغییر قابلیت انتشار نسخه signed را داشته باشد.
+  # ==========================================================
+  sign:
+    name: Sign APK
+    needs: build
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    # Environment پیشنهادی:
+    # production-signing
+    #
+    # در GitHub می‌توان برای آن Required reviewers تنظیم کرد.
+    environment:
+      name: production-signing
+
+    steps:
+
+      # --------------------------------------------------------
+      # دریافت APK unsigned
+      # --------------------------------------------------------
+      - name: Download unsigned APK
+        uses: actions/download-artifact@v4
+        with:
+          name: shelter-unsigned-apk
+          path: unsigned-release
+
+      # --------------------------------------------------------
+      # Java 17
+      # --------------------------------------------------------
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # --------------------------------------------------------
+      # Decode keystore
+      #
+      # Secret فقط در این Job وجود دارد.
+      # --------------------------------------------------------
+      - name: Decode signing keystore
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          test -n "$KEYSTORE_BASE64"
+
+          printf '%s' "$KEYSTORE_BASE64" \
+            | base64 --decode \
+            > "$RUNNER_TEMP/shelter.keystore"
+
+          chmod 600 "$RUNNER_TEMP/shelter.keystore"
+
+      # --------------------------------------------------------
+      # بررسی keystore
+      # --------------------------------------------------------
+      - name: Verify keystore
+        shell: bash
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+
+          keytool -list \
+            -keystore "$RUNNER_TEMP/shelter.keystore" \
+            -storepass "$KEYSTORE_PASSWORD" \
+            -alias "$KEY_ALIAS"
+
+      # --------------------------------------------------------
+      # ایجاد نسخه signed از روی unsigned
+      #
+      # فایل unsigned دست‌نخورده باقی می‌ماند.
+      # --------------------------------------------------------
+      - name: Prepare signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p signed-release
+
+          UNSIGNED_APK=$(find unsigned-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          test -n "$UNSIGNED_APK"
+
+          cp "$UNSIGNED_APK" \
+            "signed-release/Shelter-signed-${GITHUB_SHA::12}.apk"
+
+      # --------------------------------------------------------
+      # Sign
+      # --------------------------------------------------------
+      - name: Sign APK
+        shell: bash
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/shelter.keystore
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          APK=$(find signed-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          test -n "$APK"
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign \
+            --ks "$ANDROID_KEYSTORE_PATH" \
+            --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
+            --ks-key-alias "$ANDROID_KEY_ALIAS" \
+            --key-pass env:ANDROID_KEY_PASSWORD \
+            "$APK"
+
+      # --------------------------------------------------------
+      # Verify signed APK
+      # --------------------------------------------------------
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK=$(find signed-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            --verbose \
+            "$APK"
+
+      # --------------------------------------------------------
+      # نمایش certificate
+      # --------------------------------------------------------
+      - name: Print signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK=$(find signed-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          echo "===== Certificate information ====="
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            --print-certs \
+            "$APK"
+
+      # --------------------------------------------------------
+      # SHA256 برای هر دو نسخه
+      # --------------------------------------------------------
+      - name: Generate SHA256 files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          sha256sum signed-release/*.apk \
+            > signed-release/SHA256SUMS-signed.txt
+
+          # SHA-256 نسخه unsigned دوباره ثبت می‌شود تا همراه Release باشد.
+          sha256sum unsigned-release/*.apk \
+            > unsigned-release/SHA256SUMS-unsigned.txt
+
+          echo "===== Unsigned SHA-256 ====="
+          cat unsigned-release/SHA256SUMS-unsigned.txt
+
+          echo ""
+          echo "===== Signed SHA-256 ====="
+          cat signed-release/SHA256SUMS-signed.txt
+
+      # --------------------------------------------------------
+      # ذخیره هر دو نسخه برای Job Release
+      # --------------------------------------------------------
+      - name: Upload signed and unsigned release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: shelter-release-files
+          path: |
+            unsigned-release/*.apk
+            unsigned-release/SHA256SUMS-unsigned.txt
+            signed-release/*.apk
+            signed-release/SHA256SUMS-signed.txt
+          if-no-files-found: error
+          retention-days: 1
+
+      # --------------------------------------------------------
+      # حذف کلید
+      # --------------------------------------------------------
+      - name: Delete signing key
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/shelter.keystore"
+
+
+  # ==========================================================
+  # 3. RELEASE
+  #
+  # این Job کلید امضا را ندارد.
+  #
+  # Release شامل:
+  #   - APK signed
+  #   - APK unsigned و قابل امضای محلی
+  #   - SHA256 unsigned
+  #   - SHA256 signed
+  # ==========================================================
+  release:
+    name: Create GitHub Release
+    needs: sign
+
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    environment:
+      name: production-release
+
+    steps:
+
+      # --------------------------------------------------------
+      # دریافت هر دو نسخه
+      # --------------------------------------------------------
+      - name: Download release files
+        uses: actions/download-artifact@v4
+        with:
+          name: shelter-release-files
+          path: release
+
+      # --------------------------------------------------------
+      # بررسی نهایی نسخه unsigned
+      # --------------------------------------------------------
+      - name: Verify unsigned APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK=$(find release/unsigned-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          test -n "$APK"
+
+          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"; then
+            echo "ERROR: The APK marked as unsigned is actually signed."
+            exit 1
+          fi
+
+          echo "OK: Release unsigned APK is truly unsigned."
+
+      # --------------------------------------------------------
+      # بررسی نهایی نسخه signed
+      # --------------------------------------------------------
+      - name: Verify signed APK
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          APK=$(find release/signed-release \
+            -type f \
+            -name "*.apk" \
+            | head -n 1)
+
+          test -n "$APK"
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            --verbose \
+            "$APK"
+
+          echo ""
+          echo "===== Certificate ====="
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
+            --print-certs \
+            "$APK"
+
+      # --------------------------------------------------------
+      # نمایش Hashها
+      # --------------------------------------------------------
+      - name: Verify SHA256 records
+        shell: bash
+        run: |
+          set -euo pipefail
 
           cd release
 
-          sha256sum *.apk > SHA256SUMS.txt
-
-          echo "===== Release files ====="
-          ls -lh
+          echo "===== Unsigned SHA256 ====="
+          cat unsigned-release/SHA256SUMS-unsigned.txt
 
           echo ""
-          echo "===== SHA-256 ====="
-          cat SHA256SUMS.txt
+          echo "===== Signed SHA256 ====="
+          cat signed-release/SHA256SUMS-signed.txt
 
-      # --------------------------------------------------
-      # 11. ایجاد GitHub Release
-      # --------------------------------------------------
+          echo ""
+          echo "===== Release files ====="
+          find . -maxdepth 2 -type f -print
+
+      # --------------------------------------------------------
+      # آماده‌سازی نام فایل‌ها برای Release
+      # --------------------------------------------------------
+      - name: Prepare GitHub Release files
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          mkdir -p final-release
+
+          cp release/unsigned-release/*.apk \
+            final-release/
+
+          cp release/unsigned-release/SHA256SUMS-unsigned.txt \
+            final-release/
+
+          cp release/signed-release/*.apk \
+            final-release/
+
+          cp release/signed-release/SHA256SUMS-signed.txt \
+            final-release/
+
+          echo "===== Final Release files ====="
+          ls -lh final-release
+
+      # --------------------------------------------------------
+      # انتشار
+      # --------------------------------------------------------
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
@@ -184,13 +547,6 @@ jobs:
           name: "Shelter Release v${{ github.run_number }}"
           generate_release_notes: true
           files: |
-            release/*.apk
-            release/SHA256SUMS.txt
-
-      # --------------------------------------------------
-      # 12. حذف keystore موقت
-      # --------------------------------------------------
-      - name: Delete temporary keystore
-        if: always()
-        run: |
-          rm -f "$RUNNER_TEMP/shelter.keystore"
+            final-release/*.apk
+            final-release/SHA256SUMS-unsigned.txt
+            final-release/SHA256SUMS-signed.txt
