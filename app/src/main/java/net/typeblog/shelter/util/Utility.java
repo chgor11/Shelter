@@ -656,4 +656,55 @@ public class Utility {
             return mInner.parseResult(resultCode, intent);
         }
     }
+
+    public static void enforceParentKeyguardPolicies(Context context) {
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        if (manager == null) {
+            return;
+        }
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        // This method must be called from the Work Profile,
+        // where Shelter is the Profile Owner.
+        if (!manager.isProfileOwnerApp(context.getPackageName())) {
+            return;
+        }
+    
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                DevicePolicyManager parentManager =
+                        manager.getParentProfileInstance(adminComponent);
+    
+                int keyguardFlags =
+                        DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
+                        | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                        | DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                        | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+    
+                parentManager.setKeyguardDisabledFeatures(
+                        adminComponent,
+                        keyguardFlags
+                );
+    
+                android.util.Log.i(
+                        "ShelterParentPolicy",
+                        "Parent keyguard policies applied"
+                );
+    
+            } catch (SecurityException e) {
+                android.util.Log.e(
+                        "ShelterParentPolicy",
+                        "Unable to apply Parent keyguard policies",
+                        e
+                );
+            }
+        }
+    }
 }
