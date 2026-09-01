@@ -204,6 +204,8 @@ public class DummyActivity extends Activity {
             actionStartFileShuttle();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
+        } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
+            actionSecurityResponse();
         } else {
             finish();
         }
