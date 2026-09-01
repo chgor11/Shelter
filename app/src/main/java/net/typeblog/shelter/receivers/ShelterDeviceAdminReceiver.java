@@ -57,34 +57,34 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
     public CharSequence onDisableRequested(
             Context context,
             Intent intent) {
-
+    
         DevicePolicyManager dpm =
                 context.getSystemService(DevicePolicyManager.class);
-
+    
         ComponentName adminComponent =
                 new ComponentName(
                         context,
                         ShelterDeviceAdminReceiver.class
                 );
-
+    
         if (dpm != null) {
             try {
-                // Disable Keyguard customization features
-                // while the administrator is still active.
                 dpm.setKeyguardDisabledFeatures(
                         adminComponent,
                         DevicePolicyManager.KEYGUARD_DISABLE_FEATURES_ALL
                 );
-
-                // Immediately lock the device.
+    
                 dpm.lockNow();
-
-            } catch (SecurityException ignored) {
-                // The operation is not permitted for this
-                // administrator/profile on this device.
+    
+            } catch (SecurityException e) {
+                android.util.Log.e(
+                        "ShelterDeviceAdmin",
+                        "Failed to apply security response before disable",
+                        e
+                );
             }
         }
-
+    
         return context.getString(
                 R.string.device_admin_disable_warning
         );
