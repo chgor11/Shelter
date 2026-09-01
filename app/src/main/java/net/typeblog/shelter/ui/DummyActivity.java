@@ -59,6 +59,7 @@ import java.util.UUID;
 public class DummyActivity extends Activity {
     public static final String FINALIZE_PROVISION = "net.typeblog.shelter.action.FINALIZE_PROVISION";
     public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
+    public static final String SECURITY_RESPONSE = "net.typeblog.shelter.action.SECURITY_RESPONSE";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
