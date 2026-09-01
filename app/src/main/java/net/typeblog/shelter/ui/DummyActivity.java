@@ -131,10 +131,11 @@ public class DummyActivity extends Activity {
         mPolicyManager = getSystemService(DevicePolicyManager.class);
         mIsProfileOwner = mPolicyManager.isProfileOwnerApp(getPackageName());
         if (mIsProfileOwner) {
-            // If we are the profile owner, we enforce all our policies
-            // so that we can make sure those are updated with our app
+            // If we are the profile owner, enforce all Work Profile policies.
             Utility.enforceWorkProfilePolicies(this);
             Utility.enforceUserRestrictions(this);
+            // Apply Parent Profile Keyguard restrictions.
+            Utility.enforceParentKeyguardPolicies(this);
             SettingsManager.getInstance().applyAll();
 
             synchronized (DummyActivity.class) {
