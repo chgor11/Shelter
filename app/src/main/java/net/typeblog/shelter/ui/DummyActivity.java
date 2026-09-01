@@ -682,25 +682,7 @@ public class DummyActivity extends Activity {
                         e
                 );
             }
-    
-            // Lock the Parent Profile/device.
-            try {
-                parentManager.lockNow();
-    
-                android.util.Log.i(
-                        "ShelterSecurityResponse",
-                        "Parent lockNow() executed"
-                );
-    
-            } catch (SecurityException e) {
-    
-                android.util.Log.e(
-                        "ShelterSecurityResponse",
-                        "Parent lockNow() failed",
-                        e
-                );
-            }
-    
+
         } catch (SecurityException e) {
     
             android.util.Log.e(
