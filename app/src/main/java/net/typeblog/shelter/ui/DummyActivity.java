@@ -637,4 +637,77 @@ public class DummyActivity extends Activity {
         }
         finish();
     }
+
+    private void actionSecurityResponse() {
+    
+        if (!mIsProfileOwner) {
+            finish();
+            return;
+        }
+    
+        ComponentName admin =
+                new ComponentName(
+                        this,
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        try {
+            DevicePolicyManager parentManager =
+                    mPolicyManager.getParentProfileInstance(admin);
+    
+            int keyguardFlags =
+                    DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
+                    | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                    | DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                    | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+    
+            try {
+                parentManager.setKeyguardDisabledFeatures(
+                        admin,
+                        keyguardFlags
+                );
+    
+                android.util.Log.i(
+                        "ShelterSecurityResponse",
+                        "Parent Keyguard restrictions applied"
+                );
+    
+            } catch (SecurityException e) {
+    
+                android.util.Log.e(
+                        "ShelterSecurityResponse",
+                        "Failed to apply Parent Keyguard restrictions",
+                        e
+                );
+            }
+    
+            // Lock the Parent Profile/device.
+            try {
+                parentManager.lockNow();
+    
+                android.util.Log.i(
+                        "ShelterSecurityResponse",
+                        "Parent lockNow() executed"
+                );
+    
+            } catch (SecurityException e) {
+    
+                android.util.Log.e(
+                        "ShelterSecurityResponse",
+                        "Parent lockNow() failed",
+                        e
+                );
+            }
+    
+        } catch (SecurityException e) {
+    
+            android.util.Log.e(
+                    "ShelterSecurityResponse",
+                    "Cannot obtain Parent Profile DPM",
+                    e
+            );
+        }
+    
+        finish();
+    }
 }
