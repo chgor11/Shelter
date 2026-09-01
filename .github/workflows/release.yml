@@ -144,15 +144,30 @@ jobs:
             -name "*.apk" \
             | head -n 1)
 
+          if [ -z "$APK" ]; then
+            echo "ERROR: APK not found."
+            exit 1
+          fi
+
+          # به جای اتکا به exit code عمومی apksigner verify،
+          # مستقیماً وجود امضای APK را با apksigner بررسی می‌کنیم.
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
 
-          if "$APKSIGNER" verify "$APK"; then
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose "$APK" 2>&1 || true)"
+
+          echo "===== apksigner output ====="
+          echo "$VERIFY_OUTPUT"
+
+          # APK امضاشده باید حداقل یکی از این عبارت‌های
+          # "Verified using v1/v2/v3/v4 scheme" را داشته باشد.
+          if echo "$VERIFY_OUTPUT" | grep -Eq 'Verified using v[1-4] scheme'; then
             echo "ERROR: APK is already signed."
             echo "The release build must produce a truly unsigned APK."
             exit 1
           fi
 
-          echo "OK: APK is unsigned and can proceed to local signing."
+          echo "OK: APK has no recognized APK signing scheme."
+          echo "This APK is suitable for signing on the local computer."
 
       # --------------------------------------------------------
       # آماده‌سازی نسخه unsigned برای Release
@@ -458,7 +473,14 @@ jobs:
 
           test -n "$APK"
 
-          if "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify "$APK"; then
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose "$APK" 2>&1 || true)"
+
+          echo "===== apksigner output ====="
+          echo "$VERIFY_OUTPUT"
+
+          if echo "$VERIFY_OUTPUT" | grep -Eq 'Verified using v[1-4] scheme'; then
             echo "ERROR: The APK marked as unsigned is actually signed."
             exit 1
           fi
