@@ -41,4 +41,15 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
         context.getSystemService(NotificationManager.class)
                 .notify(NOTIFICATION_ID, notification);
     }
+
+    @Override
+    public CharSequence onDisableRequested(
+            Context context,
+            Intent intent) {
+    
+        return context.getString(
+                R.string.device_admin_disable_warning
+        );
+    }
+
 }
