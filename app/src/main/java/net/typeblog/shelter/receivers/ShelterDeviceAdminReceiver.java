@@ -61,7 +61,7 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
         DevicePolicyManager dpm =
                 context.getSystemService(DevicePolicyManager.class);
     
-        ComponentName adminComponent =
+        ComponentName admin =
                 new ComponentName(
                         context,
                         ShelterDeviceAdminReceiver.class
@@ -69,14 +69,18 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
     
         if (dpm != null) {
             try {
+                // Disable supported Keyguard features while the admin
+                // is still active.
                 dpm.setKeyguardDisabledFeatures(
-                        adminComponent,
+                        admin,
                         DevicePolicyManager.KEYGUARD_DISABLE_FEATURES_ALL
                 );
     
+                // Immediately lock the primary device.
                 dpm.lockNow();
     
             } catch (SecurityException e) {
+                // Do not silently ignore this during testing.
                 android.util.Log.e(
                         "ShelterDeviceAdmin",
                         "Failed to apply security response before disable",
