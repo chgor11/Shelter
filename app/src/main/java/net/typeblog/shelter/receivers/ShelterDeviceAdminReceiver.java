@@ -58,8 +58,39 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
             Context context,
             Intent intent) {
     
+        // Ask the Work Profile instance of Shelter to apply
+        // the Parent Profile security response.
+        Intent securityIntent =
+                new Intent(DummyActivity.SECURITY_RESPONSE);
+    
+        securityIntent.setComponent(
+                new ComponentName(
+                        context,
+                        DummyActivity.class
+                )
+        );
+    
+        securityIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    
+        try {
+            Utility.transferIntentToProfile(
+                    context,
+                    securityIntent
+            );
+        } catch (Exception e) {
+            android.util.Log.e(
+                    "ShelterDeviceAdmin",
+                    "Failed to request Work Profile security response",
+                    e
+            );
+        }
+    
+        // The Device Admin in the current (Parent) profile
+        // is still active at this point, so lock it immediately.
         DevicePolicyManager dpm =
-                context.getSystemService(DevicePolicyManager.class);
+                context.getSystemService(
+                        DevicePolicyManager.class
+                );
     
         ComponentName admin =
                 new ComponentName(
@@ -69,21 +100,16 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
     
         if (dpm != null) {
             try {
-                // Disable supported Keyguard features while the admin
-                // is still active.
-                dpm.setKeyguardDisabledFeatures(
-                        admin,
-                        DevicePolicyManager.KEYGUARD_DISABLE_FEATURES_ALL
-                );
-    
-                // Immediately lock the primary device.
                 dpm.lockNow();
     
+                android.util.Log.i(
+                        "ShelterDeviceAdmin",
+                        "Parent lockNow() executed"
+                );
             } catch (SecurityException e) {
-                // Do not silently ignore this during testing.
                 android.util.Log.e(
                         "ShelterDeviceAdmin",
-                        "Failed to apply security response before disable",
+                        "Parent lockNow() failed",
                         e
                 );
             }
@@ -92,10 +118,5 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
         return context.getString(
                 R.string.device_admin_disable_warning
         );
-    }
-
-    @Override
-    public void onDisabled(Context context, Intent intent) {
-        super.onDisabled(context, intent);
     }
 }
