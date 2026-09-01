@@ -7,5 +7,6 @@
         <expire-password />
         <encrypted-storage />
         <manage-profile />
+        <disable-keyguard-features />
     </uses-policies>
 </device-admin>
