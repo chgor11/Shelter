@@ -36,6 +36,7 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_egg_round"
         android:supportsRtl="true"
+        android:manageSpaceActivity=".ui.ManageSpaceActivity"
         android:theme="@style/AppTheme">
 
         <!-- The main activity for UI -->
@@ -47,6 +48,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!--ManageSpace -->
+        <activity
+            android:name=".ui.ManageSpaceActivity"
+            android:excludeFromRecents="true"
+            android:exported="false" />
 
         <!-- Setup Wizard -->
         <activity android:name=".ui.SetupWizardActivity"
