@@ -20,6 +20,7 @@
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS"
         tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.NFC" />
 
     <!-- For querying apps on Android R and later -->
@@ -88,6 +89,19 @@
                 <action android:name="net.typeblog.shelter.action.START_FILE_SHUTTLE_2" />
                 <action android:name="net.typeblog.shelter.action.SYNCHRONIZE_PREFERENCE" />
                 <action android:name="net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Work Profile authentication gate. This is cross-profile forwarded
+             from MainActivity and validates Shelter's signed Intent before prompting. -->
+        <activity
+            android:name=".ui.DummyActivity$WorkProfileAuthenticationActivity"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
