@@ -712,4 +712,77 @@ public class Utility {
             }
         }
     }
+
+    public static void resetParentKeyguardPolicy(
+            Context context,
+            int policyToRemove) {
+    
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        if (manager == null ||
+                !manager.isProfileOwnerApp(context.getPackageName())) {
+            return;
+        }
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        try {
+            DevicePolicyManager parentManager =
+                    manager.getParentProfileInstance(adminComponent);
+    
+            int current =
+                    parentManager.getKeyguardDisabledFeatures(
+                            adminComponent
+                    );
+    
+            int remaining =
+                    current & ~policyToRemove;
+    
+            parentManager.setKeyguardDisabledFeatures(
+                    adminComponent,
+                    remaining
+            );
+    
+        } catch (SecurityException e) {
+            android.util.Log.e(
+                    "ShelterParentPolicy",
+                    "Failed to reset keyguard policy",
+                    e
+            );
+        }
+    }
+
+    public static void resetParentTrustAgents(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
+        );
+    }
+
+    public static void resetParentFingerprint(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+        );
+    }
+
+    public static void resetParentFace(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_FACE
+        );
+    }
+
+    public static void resetParentIris(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+        );
+    }
+
 }
