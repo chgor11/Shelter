@@ -144,6 +144,14 @@ public class Utility {
                 new IntentFilter(DummyActivity.TRY_START_SERVICE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
+        // Allow Main Profile to request Work Profile user authentication.
+        // The request itself remains protected by AuthenticationUtility's
+        // existing cross-profile Intent signature.
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.AUTHENTICATE_WORK_PROFILE),
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
+
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.UNFREEZE_AND_LAUNCH),
