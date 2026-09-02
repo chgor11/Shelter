@@ -5,6 +5,9 @@ import android.app.Activity;
 import android.app.PendingIntent;
 import android.app.ProgressDialog;
 import android.app.admin.DevicePolicyManager;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
+import android.os.CancellationSignal;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
@@ -25,6 +28,8 @@ import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
 import androidx.core.content.ContextCompat;
 
 import net.typeblog.shelter.R;
@@ -59,6 +64,7 @@ import java.util.UUID;
 public class DummyActivity extends Activity {
     public static final String FINALIZE_PROVISION = "net.typeblog.shelter.action.FINALIZE_PROVISION";
     public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
+    public static final String AUTHENTICATE_WORK_PROFILE = "net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE";
     public static final String SECURITY_RESPONSE = "net.typeblog.shelter.action.SECURITY_RESPONSE";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
@@ -179,8 +185,7 @@ public class DummyActivity extends Activity {
             }
         }
 
-        if (START_SERVICE.equals(intent.getAction())) {
-            actionStartService();
+        if (START_SERVICE.equals(intent.getAction())) {            actionStartService();
         } else if (TRY_START_SERVICE.equals(intent.getAction())) {
             // Dummy activity with dummy intent won't ever fail :)
             // This is used for testing if work mode is disabled from MainActivity
@@ -229,6 +234,7 @@ public class DummyActivity extends Activity {
             }
         }
     }
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -284,6 +290,137 @@ public class DummyActivity extends Activity {
             startActivity(intent);
             Toast.makeText(this, getString(R.string.provision_finished), Toast.LENGTH_LONG).show();
             finish();
+        }
+    }
+
+    /**
+     * Authentication UI for the Work Profile. This Activity is exported only
+     * so Android's cross-profile intent forwarding can resolve it; the caller
+     * is still authenticated with Shelter's existing signed Intent mechanism.
+     */
+    public static class WorkProfileAuthenticationActivity extends FragmentActivity {
+        private static final String TAG = "ShelterWorkProfileAuth";
+
+        @Override
+        protected void onCreate(@Nullable Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+
+            if (!AuthenticationUtility.checkIntent(getIntent())) {
+                setResult(Activity.RESULT_CANCELED);
+                finish();
+                return;
+            }
+
+            if (savedInstanceState == null) {
+                getSupportFragmentManager().beginTransaction()
+                        .add(new AuthenticationFragment(), TAG)
+                        .commit();
+            }
+        }
+
+        public static class AuthenticationFragment extends Fragment {
+            private static final String STATE_STARTED = "authentication_started";
+            private boolean mStarted;
+
+            @Override
+            public void onCreate(@Nullable Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                setRetainInstance(true);
+                mStarted = savedInstanceState != null
+                        && savedInstanceState.getBoolean(STATE_STARTED, false);
+            }
+
+            @Override
+            public void onSaveInstanceState(@NonNull Bundle outState) {
+                outState.putBoolean(STATE_STARTED, mStarted);
+                super.onSaveInstanceState(outState);
+            }
+
+            @Override
+            public void onResume() {
+                super.onResume();
+                if (!mStarted) {
+                    mStarted = true;
+                    startAuthentication();
+                }
+            }
+
+            private void finishAuthentication(int resultCode) {
+                Activity activity = getActivity();
+                if (activity != null && !activity.isFinishing()) {
+                    activity.setResult(resultCode);
+                    activity.finish();
+                }
+            }
+
+            private void startAuthentication() {
+                Activity activity = getActivity();
+                if (activity == null) {
+                    return;
+                }
+
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
+
+                BiometricManager manager =
+                        activity.getSystemService(BiometricManager.class);
+                if (manager == null) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
+
+                final int authenticators =
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+
+                int availability = manager.canAuthenticate(authenticators);
+
+                // No PIN/pattern/password exists for this profile.
+                // The requested policy treats this as successful authentication.
+                if (availability == BiometricManager.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL) {
+                    finishAuthentication(Activity.RESULT_OK);
+                    return;
+                }
+
+                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
+
+                try {
+                    BiometricPrompt prompt = new BiometricPrompt.Builder(activity)
+                            .setTitle(getString(R.string.app_name))
+                            .setSubtitle("Unlock Work Profile")
+                            .setDescription("Enter your Work Profile PIN, pattern, or password.")
+                            .setAllowedAuthenticators(authenticators)
+                            .build();
+
+                    prompt.authenticate(
+                            new CancellationSignal(),
+                            activity.getMainExecutor(),
+                            new BiometricPrompt.AuthenticationCallback() {
+                                @Override
+                                public void onAuthenticationSucceeded(
+                                        BiometricPrompt.AuthenticationResult result) {
+                                    if (result.getAuthenticationType() ==
+                                            BiometricPrompt.AUTHENTICATION_RESULT_TYPE_DEVICE_CREDENTIAL) {
+                                        finishAuthentication(Activity.RESULT_OK);
+                                    } else {
+                                        finishAuthentication(Activity.RESULT_CANCELED);
+                                    }
+                                }
+
+                                @Override
+                                public void onAuthenticationError(
+                                        int errorCode, CharSequence errString) {
+                                    finishAuthentication(Activity.RESULT_CANCELED);
+                                }
+                            });
+                } catch (RuntimeException e) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                }
+            }
         }
     }
 
