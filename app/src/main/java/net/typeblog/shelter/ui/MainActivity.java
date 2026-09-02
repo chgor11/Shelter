@@ -54,23 +54,24 @@ public class MainActivity extends AppCompatActivity {
                             new ActivityResultContracts.OpenDocument(),
                             new String[]{"application/vnd.android.package-archive"}),
                     this::onApkSelected);
-    // Logic of the following intents are quite complicated; use the generic contract for more control
+
     private final ActivityResultLauncher<Intent> mTryStartWorkService =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::tryStartWorkServiceCb);
+    private final ActivityResultLauncher<Intent> mAuthenticateWorkProfile =
+            registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::authenticateWorkProfileCb);
     private final ActivityResultLauncher<Intent> mBindWorkService =
             registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), this::bindWorkServiceCb);
 
     private LocalStorageManager mStorage = null;
 
-    // Flag to avoid double-killing our services while restarting
     private boolean mRestarting = false;
+    private boolean mWorkAuthenticationInProgress = false;
+    private boolean mWorkAuthenticationSucceeded = false;
+    private boolean mStartupInProgress = false;
 
-    // Two services running in main / work profile
     private IShelterService mServiceMain = null;
     private IShelterService mServiceWork = null;
 
-    // Show all applications or not
-    // default to false
     boolean mShowAll = false;
 
     @Override
@@ -81,28 +82,30 @@ public class MainActivity extends AppCompatActivity {
         setSupportActionBar(findViewById(R.id.main_toolbar));
         mStorage = LocalStorageManager.getInstance();
 
+        if (savedInstanceState != null) {
+            mWorkAuthenticationInProgress =
+                    savedInstanceState.getBoolean("work_auth_in_progress", false);
+            mWorkAuthenticationSucceeded =
+                    savedInstanceState.getBoolean("work_auth_succeeded", false);
+            mStartupInProgress =
+                    savedInstanceState.getBoolean("startup_in_progress", false);
+        }
+
         if (getSystemService(DevicePolicyManager.class).isProfileOwnerApp(getPackageName())) {
-            // We are now in our own profile
-            // We should never start the main activity here.
             android.util.Log.d("MainActivity", "started in user profile. stopping.");
             finish();
         } else {
             init();
         }
-
     }
 
     private void init() {
         if (mStorage.getBoolean(LocalStorageManager.PREF_IS_SETTING_UP) && !Utility.isWorkProfileAvailable(this)) {
-            // System has already finished provisioning, but Shelter still
-            // needs to be brought up inside the work profile
             mResumeSetup.launch(null);
         } else if (!mStorage.getBoolean(LocalStorageManager.PREF_HAS_SETUP)) {
             mStartSetup.launch(null);
         } else {
-            // Initialize the settings
             SettingsManager.getInstance().applyAll();
-            // Initialize the app (start by binding the services)
             bindServices();
         }
     }
@@ -115,9 +118,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindServices() {
-        // Bind to the service provided by this app in main user
-        // The service in main profile doesn't need to be foreground
-        // because this activity will hold a ServiceConnection to the service
+        if (mStartupInProgress || mServiceMain != null) {
+            return;
+        }
+        mStartupInProgress = true;
+
         ((ShelterApplication) getApplication()).bindShelterService(new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
@@ -133,18 +138,11 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void tryStartWorkService() {
-        // Send a dummy intent to the work profile first
-        // to determine if work mode is enabled and we CAN start something in that profile.
-        // If work mode is disabled when starting this app, we will receive RESULT_CANCELED
-        // in the activity result, and we can then prompt the user to enable it
         Intent intent = new Intent(DummyActivity.TRY_START_SERVICE);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         try {
             Utility.transferIntentToProfile(this, intent);
         } catch (IllegalStateException e) {
-            // This exception implies a missing work profile, NOT a disabled work profile
-            // which means that the work profile does not even exist
-            // in the first place.
             mStorage.setBoolean(LocalStorageManager.PREF_HAS_SETUP, false);
             Toast.makeText(this, getString(R.string.work_profile_not_found), Toast.LENGTH_LONG).show();
             finish();
@@ -155,13 +153,45 @@ public class MainActivity extends AppCompatActivity {
 
     private void tryStartWorkServiceCb(ActivityResult result) {
         if (result.getResultCode() == RESULT_OK) {
-            // RESULT_OK is from DummyActivity. The work profile is enabled!
+            // Work Profile is enabled. Authentication is mandatory before
+            // the Work Profile ShelterService can be bound.
+            authenticateWorkProfile();
+        } else {
+            Toast.makeText(this,
+                    getString(R.string.work_mode_disabled), Toast.LENGTH_LONG).show();
+            finish();
+        }
+    }
+
+    private void authenticateWorkProfile() {
+        if (mWorkAuthenticationInProgress || mWorkAuthenticationSucceeded || mServiceWork != null) {
+            return;
+        }
+
+        Intent intent = new Intent(DummyActivity.AUTHENTICATE_WORK_PROFILE);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+
+        try {
+            Utility.transferIntentToProfile(this, intent);
+        } catch (IllegalStateException e) {
+            Toast.makeText(this,
+                    getString(R.string.work_profile_not_found), Toast.LENGTH_LONG).show();
+            finish();
+            return;
+        }
+
+        mWorkAuthenticationInProgress = true;
+        mAuthenticateWorkProfile.launch(intent);
+    }
+
+    private void authenticateWorkProfileCb(ActivityResult result) {
+        mWorkAuthenticationInProgress = false;
+
+        if (result.getResultCode() == RESULT_OK) {
+            mWorkAuthenticationSucceeded = true;
             bindWorkService();
         } else {
-            // In this case, the user has been presented with a prompt
-            // to enable work mode, but we have no means to distinguish
-            // "ok" and "cancel", so the only way is to tell the user
-            // to start again.
+            mWorkAuthenticationSucceeded = false;
             Toast.makeText(this,
                     getString(R.string.work_mode_disabled), Toast.LENGTH_LONG).show();
             finish();
@@ -169,7 +199,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void bindWorkService() {
-        // Bind to the ShelterService in work profile
+        if (!mWorkAuthenticationSucceeded || mServiceWork != null) {
+            return;
+        }
+
         Intent intent = new Intent(DummyActivity.START_SERVICE);
         intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
         Utility.transferIntentToProfile(this, intent);
@@ -179,19 +212,27 @@ public class MainActivity extends AppCompatActivity {
     private void bindWorkServiceCb(ActivityResult result) {
         if (result.getResultCode() == RESULT_OK && result.getData() != null) {
             Bundle extra = result.getData().getBundleExtra("extra");
+            if (extra == null) {
+                finish();
+                return;
+            }
             IBinder binder = extra.getBinder("service");
+            if (binder == null) {
+                finish();
+                return;
+            }
             mServiceWork = IShelterService.Stub.asInterface(binder);
+            mStartupInProgress = false;
             registerStartActivityProxies();
             startKiller();
             buildView();
+        } else {
+            mStartupInProgress = false;
+            finish();
         }
     }
 
     private void startKiller() {
-        // Start the sticky KillerService to kill the ShelterService
-        // for us when we are removed from tasks
-        // This is a dirty hack because no lifecycle events will be
-        // called when task is removed from recents
         Intent intent = new Intent(this, KillerService.class);
         Bundle bundle = new Bundle();
         bundle.putBinder("main", mServiceMain.asBinder());
@@ -201,13 +242,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void buildView() {
-        // Finally we can build the view
-        // Find all the views
         ViewPager2 pager = findViewById(R.id.main_pager);
         BottomNavigationView nav = findViewById(R.id.main_bottom_navigation);
 
-        // Initialize the ViewPager and the tab
-        // All the remaining work will be done in the fragments
         pager.setAdapter(new FragmentStateAdapter(this) {
             @NonNull
             @Override
@@ -247,9 +284,6 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    // Get the service on the other side
-    // remote (work) -> main
-    // main -> remote (work)
     IShelterService getOtherService(boolean isRemote) {
         return isRemote ? mServiceMain : mServiceWork;
     }
@@ -260,13 +294,11 @@ public class MainActivity extends AppCompatActivity {
         } catch (Exception e) {
             return false;
         }
-
         try {
             mServiceWork.ping();
         } catch (Exception e) {
             return false;
         }
-
         return true;
     }
 
@@ -278,14 +310,9 @@ public class MainActivity extends AppCompatActivity {
                     MainActivity.this.startActivity(intent);
                 }
             });
-
             mServiceWork.setStartActivityProxy(new IStartActivityProxy.Stub() {
                 @Override
                 public void startActivity(Intent intent) throws RemoteException {
-                    // Using the full intent may cause the package manager to
-                    // fail to find the DummyActivity inside profile.
-                    // Instead we try to use an empty intent with only the action
-                    // and then extract the correct component name
                     Intent dummyIntent = new Intent(intent.getAction());
                     Utility.transferIntentToProfileUnsigned(MainActivity.this, dummyIntent);
                     intent.setComponent(dummyIntent.getComponent());
@@ -298,22 +325,19 @@ public class MainActivity extends AppCompatActivity {
     }
 
     @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        outState.putBoolean("work_auth_in_progress", mWorkAuthenticationInProgress);
+        outState.putBoolean("work_auth_succeeded", mWorkAuthenticationSucceeded);
+        outState.putBoolean("startup_in_progress", mStartupInProgress);
+        super.onSaveInstanceState(outState);
+    }
+
+    @Override
     protected void onResume() {
         super.onResume();
         if (mServiceMain != null && mServiceWork != null && !servicesAlive()) {
-            // First, ensure that the services are killed before we restart
-            // Otherwise, the system will reuse the services and the new activity
-            // will end up depending on those old services that we are going to kill
-            // in onDestroy()
             doOnDestroy();
-
-            // Tell the onDestroy() logic that we are restarting. Do not kill the
-            // KillerService again because the new activity will be starting a new one
             mRestarting = true;
-
-            // Restart the activity if the services are no longer alive
-            // This might be caused by KillerService being destroyed and
-            // bringing all the other services with it
             Intent intent = getIntent();
             finish();
             startActivity(intent);
@@ -323,21 +347,12 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-
-        // DO NOT kill anything if we are restarting
-        // by the time this method is called, the new
-        // activity could have started those services
-        // again. We will mess up the new activity
-        // if we kill again.
         if (!mRestarting)
             doOnDestroy();
     }
 
     private void doOnDestroy() {
-        // If the activity is stopped first, then kill the KillerService
-        // to avoid double-free
         stopService(new Intent(this, KillerService.class));
-
         Utility.killShelterServices(mServiceMain, mServiceWork);
     }
 
@@ -345,11 +360,6 @@ public class MainActivity extends AppCompatActivity {
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);
         if (level >= TRIM_MEMORY_BACKGROUND && mServiceMain != null) {
-            // We actually do not need to be in the background at all
-            // (except when we are still waiting for provision to finish)
-            // Just.. do not keep me at all.. please.
-            // This is a dirty hack to ensure that the foreground service in work profile
-            // will be killed along with this activity
             finish();
         }
     }
@@ -359,7 +369,6 @@ public class MainActivity extends AppCompatActivity {
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.main_activity_menu, menu);
 
-        // Initialize the search button
         SearchView searchView = (SearchView) menu.findItem(R.id.main_menu_search).getActionView();
         searchView.setOnQueryTextListener(new SearchView.OnQueryTextListener() {
             @Override
@@ -390,8 +399,6 @@ public class MainActivity extends AppCompatActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemId = item.getItemId();
         if (itemId == R.id.main_menu_freeze_all) {
-            // This is the same as clicking on the batch freeze shortcut
-            // so we just forward the request to DummyActivity
             Intent intent = new Intent(DummyActivity.PUBLIC_FREEZE_ALL);
             intent.setComponent(new ComponentName(this, DummyActivity.class));
             startActivity(intent);
@@ -421,7 +428,6 @@ public class MainActivity extends AppCompatActivity {
                 LocalBroadcastManager.getInstance(this)
                         .sendBroadcast(new Intent(AppListFragment.BROADCAST_REFRESH));
             };
-
             if (!item.isChecked()) {
                 new AlertDialog.Builder(this)
                         .setMessage(R.string.show_all_warning)
@@ -446,13 +452,11 @@ public class MainActivity extends AppCompatActivity {
     private void onApkSelected(Uri uri) {
         if (uri == null) return;
         UriForwardProxy proxy = new UriForwardProxy(getApplicationContext(), uri);
-
         try {
             mServiceWork.installApk(proxy, new IAppInstallCallback.Stub() {
                 @Override
                 public void callback(int result) {
                     runOnUiThread(() -> {
-                        // The other side will have closed the Fd for us
                         if (result == RESULT_OK)
                             Toast.makeText(MainActivity.this,
                                     R.string.install_app_to_profile_success, Toast.LENGTH_LONG).show();
