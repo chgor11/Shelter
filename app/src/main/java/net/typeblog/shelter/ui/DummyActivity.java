@@ -365,25 +365,25 @@ public class DummyActivity extends Activity {
                 }
 
                 BiometricManager manager =
-                        activity.getSystemService(BiometricManager.class);
+                        activity.getSystemService(BiometricPrompt.class);
                 if (manager == null) {
                     finishAuthentication(Activity.RESULT_CANCELED);
                     return;
                 }
 
                 final int authenticators =
-                        BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+                        BiometricPrompt.Authenticators.DEVICE_CREDENTIAL;
 
                 int availability = manager.canAuthenticate(authenticators);
 
                 // No PIN/pattern/password exists for this profile.
                 // The requested policy treats this as successful authentication.
-                if (availability == BiometricManager.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL) {
+                if (availability == BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL) {
                     finishAuthentication(Activity.RESULT_OK);
                     return;
                 }
 
-                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+                if (availability != BiometricPrompt.BIOMETRIC_SUCCESS) {
                     finishAuthentication(Activity.RESULT_CANCELED);
                     return;
                 }
