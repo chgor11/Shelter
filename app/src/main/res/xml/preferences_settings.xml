@@ -32,6 +32,26 @@
             android:summary="@string/settings_work_profile_app_install_uninstall_desc"
             android:defaultValue="true" />
 
+        <Preference
+            android:key="settings_reset_parent_trust_agents"
+            android:title="@string/reset_parent_trust_agents"
+            android:summary="@string/reset_parent_trust_agents_summary" />
+        
+        <Preference
+            android:key="settings_reset_parent_fingerprint"
+            android:title="@string/reset_parent_fingerprint"
+            android:summary="@string/reset_parent_fingerprint_summary" />
+        
+        <Preference
+            android:key="settings_reset_parent_face"
+            android:title="@string/reset_parent_face"
+            android:summary="@string/reset_parent_face_summary" />
+        
+        <Preference
+            android:key="settings_reset_parent_iris"
+            android:title="@string/reset_parent_iris"
+            android:summary="@string/reset_parent_iris_summary" />
+
     </androidx.preference.PreferenceCategory>
 
     <androidx.preference.PreferenceCategory
