@@ -134,8 +134,6 @@ public class DummyActivity extends Activity {
             // If we are the profile owner, enforce all Work Profile policies.
             Utility.enforceWorkProfilePolicies(this);
             Utility.enforceUserRestrictions(this);
-            // Apply Parent Profile Keyguard restrictions.
-            Utility.enforceParentKeyguardPolicies(this);
             SettingsManager.getInstance().applyAll();
 
             synchronized (DummyActivity.class) {
