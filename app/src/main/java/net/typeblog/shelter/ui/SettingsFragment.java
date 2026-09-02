@@ -183,6 +183,55 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
                 mManager.getSkipForegroundEnabled());
     
         mPrefSkipForeground.setOnPreferenceChangeListener(this);
+
+        Preference resetTrustAgents =
+                findPreference("settings_reset_parent_trust_agents");
+        
+        if (resetTrustAgents != null) {
+            resetTrustAgents.setOnPreferenceClickListener(preference -> {
+        
+                Utility.resetParentTrustAgents(requireContext());
+        
+                return true;
+            });
+        }
+        
+        Preference resetFingerprint =
+                findPreference("settings_reset_parent_fingerprint");
+        
+        if (resetFingerprint != null) {
+            resetFingerprint.setOnPreferenceClickListener(preference -> {
+        
+                Utility.resetParentFingerprint(requireContext());
+        
+                return true;
+            });
+        }
+        
+        Preference resetFace =
+                findPreference("settings_reset_parent_face");
+        
+        if (resetFace != null) {
+            resetFace.setOnPreferenceClickListener(preference -> {
+        
+                Utility.resetParentFace(requireContext());
+        
+                return true;
+            });
+        }
+        
+        Preference resetIris =
+                findPreference("settings_reset_parent_iris");
+        
+        if (resetIris != null) {
+            resetIris.setOnPreferenceClickListener(preference -> {
+        
+                Utility.resetParentIris(requireContext());
+        
+                return true;
+            });
+        }
+
     
         // Disable FileShuttle on Q for now
         // Supported on R and beyond
