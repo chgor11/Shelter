@@ -365,14 +365,14 @@ public class DummyActivity extends Activity {
                 }
 
                 BiometricManager manager =
-                        activity.getSystemService(BiometricPrompt.class);
+                        activity.getSystemService(BiometricManager.class);
                 if (manager == null) {
                     finishAuthentication(Activity.RESULT_CANCELED);
                     return;
                 }
 
                 final int authenticators =
-                        BiometricPrompt.Authenticators.DEVICE_CREDENTIAL;
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL;
 
                 int availability = manager.canAuthenticate(authenticators);
 
@@ -383,7 +383,7 @@ public class DummyActivity extends Activity {
                     return;
                 }
 
-                if (availability != BiometricPrompt.BIOMETRIC_SUCCESS) {
+                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
                     finishAuthentication(Activity.RESULT_CANCELED);
                     return;
                 }
