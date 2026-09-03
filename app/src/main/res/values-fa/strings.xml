@@ -83,7 +83,6 @@
     <string name="allow_cross_profile_widgets">آزاد کردن ویجت‌ها در پروفایل اصلی</string>
     <string name="search">جستجو</string>
     <string name="freeze_all">قفل جمعی</string>
-    <string name="create_unfreeze_shortcut">ساخت میانبر رفع قفل و یا اجرا کردن</string>
     <string name="settings_block_contacts_searching">بستن جستجوی مخاطبین</string>
     <string name="settings_block_contacts_searching_desc">گرفتن دسترسی مخاطبین از پروفایل اصلی داخل پروفایل کاری.</string>
     <string name="settings_services">سرویس‌ها</string>
