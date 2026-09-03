@@ -70,7 +70,6 @@ public class DummyActivity extends Activity {
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
     public static final String UNFREEZE_AND_LAUNCH = "net.typeblog.shelter.action.UNFREEZE_AND_LAUNCH";
-    public static final String PUBLIC_UNFREEZE_AND_LAUNCH = "net.typeblog.shelter.action.PUBLIC_UNFREEZE_AND_LAUNCH";
     public static final String PUBLIC_FREEZE_ALL = "net.typeblog.shelter.action.PUBLIC_FREEZE_ALL";
     public static final String FREEZE_ALL_IN_LIST = "net.typeblog.shelter.action.FREEZE_ALL_IN_LIST";
     // If we use the same intent for parent -> profile and profile -> parent, the user will
@@ -85,8 +84,7 @@ public class DummyActivity extends Activity {
     // Only these actions are allowed without a valid signature
     private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE = Arrays.asList(
             FINALIZE_PROVISION,
-            PUBLIC_FREEZE_ALL,
-            PUBLIC_UNFREEZE_AND_LAUNCH);
+            PUBLIC_FREEZE_ALL);
 
     // Only these actions are allowed to be called from the same process (pre-registered)
     // without a valid signature
@@ -197,7 +195,7 @@ public class DummyActivity extends Activity {
             actionUninstallPackage();
         } else if (FINALIZE_PROVISION.equals(intent.getAction())) {
             actionFinalizeProvision();
-        } else if (UNFREEZE_AND_LAUNCH.equals(intent.getAction()) || PUBLIC_UNFREEZE_AND_LAUNCH.equals(intent.getAction())) {
+        } else if (UNFREEZE_AND_LAUNCH.equals(intent.getAction())) {
             actionUnfreezeAndLaunch();
         } else if (PUBLIC_FREEZE_ALL.equals(intent.getAction())) {
             actionPublicFreezeAll();
