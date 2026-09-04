@@ -18,12 +18,13 @@ import java.util.List;
  * THIS CLASS IS THE ONLY AUTHORIZED ENTRY POINT
  * FOR SECURITY POLICY APPLICATION.
  *
- * Any new security policy MUST:
+ * Every new security policy MUST:
  *
- * 1. Create a PendingSecurityChange
- * 2. Wait for user confirmation
- * 3. Require fresh authentication
- * 4. Apply only after authentication success
+ * 1. Create PendingSecurityChange
+ * 2. Wait for user review
+ * 3. Require explicit confirmation
+ * 4. Require fresh authentication
+ * 5. Apply only after authentication success
  *
  * Direct DevicePolicyManager calls outside this class
  * are forbidden.
@@ -44,6 +45,12 @@ public class SecurityPolicyChangeManager {
             new ArrayList<>();
 
 
+    /*
+     * This flag is created ONLY after
+     * successful system authentication.
+     *
+     * It is valid only for current transaction.
+     */
     private boolean authenticatedSession = false;
 
 
@@ -60,17 +67,15 @@ public class SecurityPolicyChangeManager {
     getInstance(Context context) {
 
 
-        if(instance == null) {
+        if (instance == null) {
 
             instance =
-                    new SecurityPolicyChangeManager(
-                            context);
+                    new SecurityPolicyChangeManager(context);
         }
 
 
         return instance;
     }
-
 
 
 
@@ -84,17 +89,15 @@ public class SecurityPolicyChangeManager {
         /*
          * IMPORTANT:
          *
-         * Do NOT apply the policy here.
+         * NEVER APPLY POLICY HERE.
          *
-         * This function only stores
-         * a pending transaction.
+         * Only create pending transaction.
          */
-
 
         pendingChanges.add(
                 new PendingSecurityChange(
                         policy,
-                        oldValue,
+                        oldValue == null ? "0" : oldValue,
                         newValue
                 )
         );
@@ -103,44 +106,55 @@ public class SecurityPolicyChangeManager {
 
 
 
-
     public String getPendingChangesSummary() {
 
 
-        StringBuilder builder =
+        StringBuilder result =
                 new StringBuilder();
 
 
-        for(PendingSecurityChange change:
+        for (PendingSecurityChange change :
                 pendingChanges) {
 
 
-            builder.append(
+            result.append(
                     change.getPolicyName()
             );
 
+            result.append("\nOld value: ");
 
-            builder.append("\nOld: ");
-
-            builder.append(
+            result.append(
                     change.getOldValue()
             );
 
 
-            builder.append("\nNew: ");
+            result.append("\nNew value: ");
 
-            builder.append(
+            result.append(
                     change.getNewValue()
             );
 
 
-            builder.append("\n\n");
+            result.append("\n\n");
         }
 
 
-        return builder.toString();
+        return result.toString();
     }
 
+
+
+
+
+    /*
+     * Called ONLY after successful authentication.
+     *
+     * This creates a one-time authorization.
+     */
+    public void authorizeCurrentTransaction() {
+
+        authenticatedSession = true;
+    }
 
 
 
@@ -152,24 +166,23 @@ public class SecurityPolicyChangeManager {
         /*
          * SECURITY CHECK:
          *
-         * No change may be applied
-         * without a fresh authentication event.
+         * Applying without fresh authentication
+         * is forbidden.
          */
 
+        if (!authenticatedSession) {
 
-        if(!authenticatedSession) {
-
-            authenticatedSession = true;
+            return;
         }
 
 
 
-        for(PendingSecurityChange change:
+        for (PendingSecurityChange change :
                 pendingChanges) {
 
 
-            if(change.getPolicyName()
-                    .equals("DEVICE_LOCK_DELAY")) {
+            if ("DEVICE_LOCK_DELAY"
+                    .equals(change.getPolicyName())) {
 
 
                 applyDeviceLockDelay(
@@ -186,13 +199,13 @@ public class SecurityPolicyChangeManager {
 
 
         /*
-         * Authentication is one-time only.
+         * Authentication is destroyed immediately.
+         *
+         * It cannot be reused.
          */
 
         authenticatedSession = false;
     }
-
-
 
 
 
@@ -205,8 +218,8 @@ public class SecurityPolicyChangeManager {
         DevicePolicyManager dpm =
                 (DevicePolicyManager)
                         context.getSystemService(
-                                Context.DEVICE_POLICY_SERVICE
-                        );
+                                Context.DEVICE_POLICY_SERVICE);
+
 
 
         ComponentName admin =
@@ -216,13 +229,20 @@ public class SecurityPolicyChangeManager {
                 );
 
 
-
         /*
          * SECURITY POLICY RULE:
          *
-         * Device lock is executed ONLY here,
-         * after the authentication flow completed.
+         * DevicePolicyManager operation
+         * is allowed only after authentication.
          */
+
+
+        if (dpm == null ||
+                !dpm.isAdminActive(admin)) {
+
+            return;
+        }
+
 
 
         new Handler(
@@ -231,11 +251,10 @@ public class SecurityPolicyChangeManager {
                 () -> {
 
 
-                    if(dpm != null) {
+                    if (dpm.isAdminActive(admin)) {
 
                         dpm.lockNow();
                     }
-
 
                 },
                 seconds * 1000L
@@ -246,16 +265,13 @@ public class SecurityPolicyChangeManager {
 
 
 
-
-
     public void clearAuthenticationSession() {
 
 
         /*
-         * Authentication cannot be reused
-         * for future policy changes.
+         * Authentication cannot survive
+         * cancellation or leaving the flow.
          */
-
 
         authenticatedSession = false;
     }
