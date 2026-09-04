@@ -226,7 +226,22 @@ public class ShelterService extends Service {
                 DummyActivity.registerSameProcessRequest(intent);
 
                 if (mStartActivityProxy != null)
-                    mStartActivityProxy.startActivity(intent);
+                    if (mStartActivityProxy != null) {
+
+                        try {
+                    
+                            mStartActivityProxy.startActivity(intent);
+                    
+                    
+                        } catch (Exception e) {
+                    
+                    
+                            callback.callback(
+                                    Activity.RESULT_CANCELED
+                            );
+                    
+                        }
+                    }
             } else {
                 if (mIsProfileOwner) {
                     // This is essentially the same as disabling the system app
