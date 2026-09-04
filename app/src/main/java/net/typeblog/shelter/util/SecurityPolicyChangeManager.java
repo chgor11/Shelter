@@ -10,7 +10,8 @@ import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.HashMap;
+import java.util.Map;
 
 /*
  * SECURITY POLICY ADMINISTRATION RULE
@@ -42,7 +43,7 @@ public class SecurityPolicyChangeManager {
 
     private final Map<String, PendingSecurityChange>
             pendingChanges =
-            new ArrayList<>();
+            new HashMap<>();
 
 
     /*
