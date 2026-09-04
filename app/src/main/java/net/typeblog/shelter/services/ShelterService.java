@@ -144,7 +144,19 @@ public class ShelterService extends Service {
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 DummyActivity.registerSameProcessRequest(intent);
                 if (mStartActivityProxy != null)
-                    mStartActivityProxy.startActivity(intent);
+                    try {
+
+                        mStartActivityProxy.startActivity(intent);
+                    
+                    
+                    } catch (Exception e) {
+                    
+                    
+                        callback.callback(
+                                Activity.RESULT_CANCELED
+                        );
+                    
+                    }
             } else {
                 if (mIsProfileOwner) {
                     // We can only enable system apps in our own profile
@@ -183,7 +195,19 @@ public class ShelterService extends Service {
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             DummyActivity.registerSameProcessRequest(intent);
             if (mStartActivityProxy != null)
-                mStartActivityProxy.startActivity(intent);
+                try {
+
+                    mStartActivityProxy.startActivity(intent);
+                
+                
+                } catch (Exception e) {
+                
+                
+                    callback.callback(
+                            Activity.RESULT_CANCELED
+                    );
+                
+                }
         }
 
         @Override
