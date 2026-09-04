@@ -72,7 +72,55 @@ public class SettingsFragment extends PreferenceFragmentCompat implements Prefer
     @Override
     public void onCreatePreferences(Bundle bundle, String s) {
         addPreferencesFromResource(R.xml.preferences_settings);
+
+        /*
+         * SECURITY POLICY ADMINISTRATION ENTRY
+         *
+         * Opens the separate Device Policy Manager page.
+         *
+         * IMPORTANT:
+         * Security policies inside this page MUST NOT
+         * be applied immediately.
+         *
+         * Required flow:
+         *
+         * Change
+         *   ->
+         * Pending Change
+         *   ->
+         * Review Summary
+         *   ->
+         * User Confirmation
+         *   ->
+         * Fresh Authentication
+         *   ->
+         * Apply Policy
+         *
+         * Adding direct policy execution here is forbidden.
+         */
     
+        Preference devicePolicyManager =
+                findPreference("device_policy_manager");
+    
+        if (devicePolicyManager != null) {
+    
+            devicePolicyManager.setOnPreferenceClickListener(
+                    preference -> {
+    
+                        requireActivity()
+                                .getSupportFragmentManager()
+                                .beginTransaction()
+                                .replace(
+                                        android.R.id.content,
+                                        new DevicePolicyManagerFragment()
+                                )
+                                .addToBackStack(null)
+                                .commit();
+    
+                        return true;
+                    });
+        }
+
         mServiceWork = IShelterService.Stub.asInterface(
                 ((Bundle) getActivity().getIntent()
                         .getParcelableExtra("extras"))
