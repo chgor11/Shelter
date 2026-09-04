@@ -7,8 +7,8 @@
 
         <Preference
             android:key="device_policy_manager"
-            android:title="Device Policy Manager"
-            android:summary="Advanced security policy controls requiring authentication"/>
+            android:title="@string/device_policy_manager"
+            android:summary="@string/device_policy_manager_summary"/>
 
         <androidx.preference.CheckBoxPreference
             android:key="settings_cross_profile_file_chooser"
