@@ -221,6 +221,10 @@ public class DevicePolicyManagerFragment
                  */
 
                 mChangeManager
+                        .authorizeCurrentTransaction();
+                
+                
+                mChangeManager
                         .applyAuthenticatedChanges();
 
 
