@@ -40,7 +40,7 @@ public class SecurityPolicyChangeManager {
     private final Context context;
 
 
-    private final List<PendingSecurityChange>
+    private final Map<String, PendingSecurityChange>
             pendingChanges =
             new ArrayList<>();
 
@@ -85,7 +85,6 @@ public class SecurityPolicyChangeManager {
             String oldValue,
             String newValue) {
 
-
         /*
          * IMPORTANT:
          *
@@ -93,11 +92,11 @@ public class SecurityPolicyChangeManager {
          *
          * Only create pending transaction.
          */
-
-        pendingChanges.add(
+        pendingChanges.put(
+                policy,
                 new PendingSecurityChange(
                         policy,
-                        oldValue == null ? "0" : oldValue,
+                        oldValue,
                         newValue
                 )
         );
