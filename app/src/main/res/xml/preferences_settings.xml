@@ -5,6 +5,11 @@
     <androidx.preference.PreferenceCategory
         android:title="@string/settings_interaction">
 
+        <Preference
+            android:key="device_policy_manager"
+            android:title="Device Policy Manager"
+            android:summary="Advanced security policy controls requiring authentication"/>
+
         <androidx.preference.CheckBoxPreference
             android:key="settings_cross_profile_file_chooser"
             android:title="@string/settings_cross_profile_file_chooser"
