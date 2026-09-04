@@ -470,43 +470,63 @@ public class DummyActivity extends Activity {
         }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        
             try {
-                // For Q, since we use the more "manual" method of installation,
-                // we have to also pass the split APKs ("Configuration APKs" as Google calls it)
-                // Although these are available since API 26, we don't need to
-                // take care of them for versions before Q since we don't actually
-                // install the APKs before Q.
-                actionInstallPackageQ(uri, getIntent().getStringArrayExtra("split_apks"));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+                actionInstallPackageQ(
+                        uri,
+                        getIntent().getStringArrayExtra("split_apks")
+                );
+            } catch (Exception e) {
+
+                appInstallFinished(
+                        RESULT_CANCELED
+                );
+
             }
+
         } else {
-            Intent intent = new Intent(Intent.ACTION_INSTALL_PACKAGE, uri);
-            intent.putExtra(Intent.EXTRA_INSTALLER_PACKAGE_NAME, getPackageName());
-            intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
-            intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_INSTALL_PACKAGE,
+                            uri
+                    );
+
+            intent.putExtra(
+                    Intent.EXTRA_INSTALLER_PACKAGE_NAME,
+                    getPackageName()
+            );
+
+            intent.putExtra(
+                    Intent.EXTRA_NOT_UNKNOWN_SOURCE,
+                    true
+            );
+
+            intent.putExtra(
+                    Intent.EXTRA_RETURN_RESULT,
+                    true
+            );
+
+            intent.addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
+
             try {
 
                 startActivityForResult(
                         intent,
                         REQUEST_INSTALL_PACKAGE
                 );
-            
+
             } catch (Exception e) {
-            
-            
-                /*
-                 * PackageInstaller cannot be opened.
-                 * Usually caused by security policy restriction.
-                 */
-            
+
                 setResult(
                         RESULT_CANCELED
                 );
-            
+
                 finish();
-            };
+        
+            }
         }
 
         // Restore the VmPolicy anyway
@@ -603,12 +623,42 @@ public class DummyActivity extends Activity {
     }
 
     private void actionUninstallPackageQ() {
-        PackageInstaller pi = getPackageManager().getPackageInstaller();
-        Intent intent = new Intent(this, DummyActivity.class);
-        intent.setAction(PACKAGEINSTALLER_CALLBACK);
-        PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
-                intent, PendingIntent.FLAG_MUTABLE);
-        pi.uninstall(getIntent().getStringExtra("package"), pendingIntent.getIntentSender());
+
+        try {
+            PackageInstaller pi =
+                    getPackageManager()
+                            .getPackageInstaller();
+            Intent intent =
+                    new Intent(
+                            this,
+                            DummyActivity.class
+                    );
+
+            intent.setAction(
+                    PACKAGEINSTALLER_CALLBACK
+            );
+
+            PendingIntent pendingIntent =
+                    PendingIntent.getActivity(
+                            this,
+                            0,
+                            intent,
+                            PendingIntent.FLAG_MUTABLE
+                    );
+
+            pi.uninstall(
+                    getIntent()
+                            .getStringExtra("package"),
+                    pendingIntent.getIntentSender()
+            );
+
+        } catch (Exception e) {
+
+            appInstallFinished(
+                    RESULT_CANCELED
+            );
+    
+        }
     }
 
     private void appInstallFinished(int resultCode) {
