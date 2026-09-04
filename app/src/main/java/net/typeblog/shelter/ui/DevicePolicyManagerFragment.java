@@ -76,9 +76,28 @@ public class DevicePolicyManagerFragment
                          * It only creates a pending transaction.
                          */
 
+                        String oldValue =
+                                lockDelay.getText();
+                        
+                        
+                        if (oldValue == null ||
+                                oldValue.isEmpty()) {
+                        
+                            oldValue = "0";
+                        }
+                        
+                        
+                        /*
+                         * SECURITY POLICY RULE:
+                         *
+                         * Preference changes are NEVER applied here.
+                         *
+                         * They only create pending transactions.
+                         */
+                        
                         mChangeManager.addPendingChange(
                                 "DEVICE_LOCK_DELAY",
-                                lockDelay.getText(),
+                                oldValue,
                                 String.valueOf(newValue)
                         );
 
