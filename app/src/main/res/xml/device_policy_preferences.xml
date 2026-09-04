@@ -3,13 +3,14 @@
     <Preference
         android:key="apply_security_changes"
         android:title="Apply Security Changes"
-        android:summary="Review and authenticate before applying changes"/>
+        android:summary="Review all changes and authenticate before applying"/>
 
 
     <EditTextPreference
         android:key="device_lock_delay"
         android:title="Device Lock Delay"
-        android:summary="Delay before device lock"
+        android:summary="Delay before device lock in seconds"
         android:inputType="number"/>
+
 
 </PreferenceScreen>
