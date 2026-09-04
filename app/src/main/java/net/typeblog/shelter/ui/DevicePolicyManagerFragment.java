@@ -66,43 +66,150 @@ public class DevicePolicyManagerFragment
 
         if (lockDelay != null) {
 
-            lockDelay.setOnPreferenceChangeListener(
-                    (preference, newValue) -> {
-
-                        /*
-                         * IMPORTANT:
-                         *
-                         * This does NOT apply the policy.
-                         * It only creates a pending transaction.
-                         */
-
-                        String oldValue =
-                                lockDelay.getText();
-                        
-                        
-                        if (oldValue == null ||
-                                oldValue.isEmpty()) {
-                        
-                            oldValue = "0";
-                        }
-                        
-                        
-                        /*
-                         * SECURITY POLICY RULE:
-                         *
-                         * Preference changes are NEVER applied here.
-                         *
-                         * They only create pending transactions.
-                         */
-                        
-                        mChangeManager.addPendingChange(
-                                "DEVICE_LOCK_DELAY",
-                                oldValue,
-                                String.valueOf(newValue)
-                        );
-
-                        return true;
-                    });
+                lockDelay.setOnPreferenceChangeListener(
+                        (preference, newValue) -> {
+                
+                
+                            /*
+                             * IMPORTANT:
+                             *
+                             * This does NOT apply the policy.
+                             * It only creates a pending transaction.
+                             */
+                
+                
+                            String newDelay =
+                                    String.valueOf(newValue);
+                
+                
+                
+                            /*
+                             * SECURITY POLICY VALIDATION RULE:
+                             *
+                             * Every security policy input MUST
+                             * be validated before becoming a
+                             * pending transaction.
+                             *
+                             * Invalid values must never enter
+                             * the pending queue.
+                             */
+                
+                            int delaySeconds;
+                
+                
+                            try {
+                
+                                delaySeconds =
+                                        Integer.parseInt(newDelay);
+                
+                
+                            } catch (NumberFormatException e) {
+                
+                
+                                new AlertDialog.Builder(requireContext())
+                                        .setTitle(
+                                                "Invalid Value"
+                                        )
+                                        .setMessage(
+                                                "Device Lock Delay must be a valid number."
+                                        )
+                                        .setPositiveButton(
+                                                "OK",
+                                                null
+                                        )
+                                        .show();
+                
+                
+                                return false;
+                            }
+                
+                
+                
+                            // Prevent negative values
+                
+                            if (delaySeconds < 0) {
+                
+                
+                                new AlertDialog.Builder(requireContext())
+                                        .setTitle(
+                                                "Invalid Value"
+                                        )
+                                        .setMessage(
+                                                "Device Lock Delay cannot be negative."
+                                        )
+                                        .setPositiveButton(
+                                                "OK",
+                                                null
+                                        )
+                                        .show();
+                
+                
+                                return false;
+                            }
+                
+                
+                
+                            /*
+                             * Optional safety limit:
+                             *
+                             * Maximum delay: 24 hours
+                             */
+                
+                            if (delaySeconds > 86400) {
+                
+                
+                                new AlertDialog.Builder(requireContext())
+                                        .setTitle(
+                                                "Invalid Value"
+                                        )
+                                        .setMessage(
+                                                "Device Lock Delay cannot exceed 86400 seconds."
+                                        )
+                                        .setPositiveButton(
+                                                "OK",
+                                                null
+                                        )
+                                        .show();
+                
+                
+                                return false;
+                            }
+                
+                
+                
+                
+                            String oldValue =
+                                    lockDelay.getText();
+                
+                
+                
+                            if (oldValue == null ||
+                                    oldValue.isEmpty()) {
+                
+                                oldValue = "0";
+                            }
+                
+                
+                
+                
+                            /*
+                             * SECURITY POLICY RULE:
+                             *
+                             * Preference changes are NEVER applied here.
+                             *
+                             * They only create pending transactions.
+                             */
+                
+                
+                            mChangeManager.addPendingChange(
+                                    "DEVICE_LOCK_DELAY",
+                                    oldValue,
+                                    newDelay
+                            );
+                
+                
+                            return true;
+                        });
         }
 
 
