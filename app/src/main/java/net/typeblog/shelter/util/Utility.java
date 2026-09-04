@@ -217,25 +217,7 @@ public class Utility {
                 adminComponent,
                 actionSendFilter,
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
-        
-        // Browser intents are allowed from work profile to parent
-        IntentFilter browsableIntentFilter = new IntentFilter(Intent.ACTION_VIEW);
-        browsableIntentFilter.addCategory(Intent.CATEGORY_BROWSABLE);
-        browsableIntentFilter.addDataScheme("http");
-        browsableIntentFilter.addDataScheme("https");
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                browsableIntentFilter,
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
-        IntentFilter browsableDefaultIntentFilter = new IntentFilter(Intent.ACTION_VIEW);
-        browsableDefaultIntentFilter.addCategory(Intent.CATEGORY_BROWSABLE);
-        browsableDefaultIntentFilter.addCategory(Intent.CATEGORY_DEFAULT);
-        browsableDefaultIntentFilter.addDataScheme("http");
-        browsableDefaultIntentFilter.addDataScheme("https");
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                browsableDefaultIntentFilter,
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
 
         // Block contacts searching optionally
         manager.setCrossProfileContactsSearchDisabled(adminComponent,
