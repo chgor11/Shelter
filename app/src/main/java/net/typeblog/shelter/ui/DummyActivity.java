@@ -486,7 +486,27 @@ public class DummyActivity extends Activity {
             intent.putExtra(Intent.EXTRA_NOT_UNKNOWN_SOURCE, true);
             intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivityForResult(intent, REQUEST_INSTALL_PACKAGE);
+            try {
+
+                startActivityForResult(
+                        intent,
+                        REQUEST_INSTALL_PACKAGE
+                );
+            
+            } catch (Exception e) {
+            
+            
+                /*
+                 * PackageInstaller cannot be opened.
+                 * Usually caused by security policy restriction.
+                 */
+            
+                setResult(
+                        RESULT_CANCELED
+                );
+            
+                finish();
+            };
         }
 
         // Restore the VmPolicy anyway
@@ -563,7 +583,23 @@ public class DummyActivity extends Activity {
         // with the result code.
         // If ANY separate logic is added for any of them,
         // the request code should be separated.
-        startActivityForResult(intent, REQUEST_INSTALL_PACKAGE);
+        try {
+
+            startActivityForResult(
+                    intent,
+                    REQUEST_INSTALL_PACKAGE
+            );
+        
+        
+        } catch (Exception e) {
+        
+        
+            setResult(
+                    RESULT_CANCELED
+            );
+        
+            finish();
+        }
     }
 
     private void actionUninstallPackageQ() {
