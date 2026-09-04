@@ -42,7 +42,7 @@ public class DevicePolicyManagerFragment
     private Preference mApplyPreference;
 
     private SecurityPolicyChangeManager mChangeManager;
-
+    private boolean authenticationRequested = false;
 
     @Override
     public void onCreatePreferences(
@@ -183,6 +183,7 @@ public class DevicePolicyManagerFragment
 
 
         if (intent != null) {
+            authenticationRequested = true;
 
             startActivityForResult(
                     intent,
