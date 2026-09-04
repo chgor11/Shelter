@@ -114,7 +114,7 @@ public class SecurityPolicyChangeManager {
 
 
         for (PendingSecurityChange change :
-                pendingChanges) {
+                pendingChanges.values()) {
 
 
             result.append(
@@ -178,7 +178,7 @@ public class SecurityPolicyChangeManager {
 
 
         for (PendingSecurityChange change :
-                pendingChanges) {
+                pendingChanges.values()) {
 
 
             if ("DEVICE_LOCK_DELAY"
