@@ -1,16 +1,17 @@
-<PreferenceScreen>
-
-    <Preference
-        android:key="apply_security_changes"
-        android:title="@string/apply_security_changes"
-        android:summary="@string/apply_security_changes_summary"/>
-
-
-    <EditTextPreference
-        android:key="device_lock_delay"
-        android:title="@string/device_lock_delay"
-        android:summary="@string/device_lock_delay_summary"
-            android:inputType="number"/>
-
-
-</PreferenceScreen>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceScreen>
+    
+        <Preference
+            android:key="apply_security_changes"
+            android:title="@string/apply_security_changes"
+            android:summary="@string/apply_security_changes_summary"/>
+    
+    
+        <EditTextPreference
+            android:key="device_lock_delay"
+            android:title="@string/device_lock_delay"
+            android:summary="@string/device_lock_delay_summary"
+                android:inputType="number"/>
+    
+    
+    </PreferenceScreen>
