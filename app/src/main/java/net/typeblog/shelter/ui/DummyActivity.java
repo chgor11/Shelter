@@ -574,13 +574,38 @@ public class DummyActivity extends Activity {
 
         new Thread(() -> {
             for (Uri uri : uris) {
-                try (InputStream is = getContentResolver().openInputStream(uri);
-                     OutputStream os = session.openWrite(UUID.randomUUID().toString(), 0, is.available())
+                try (
+                        InputStream is =
+                                getContentResolver()
+                                        .openInputStream(uri)
                 ) {
-                    Utility.pipe(is, os);
-                    session.fsync(os);
-                } catch (IOException e) {
-
+                
+                    if (is == null) {
+                
+                        throw new IOException(
+                                "Cannot open APK stream"
+                        );
+                    }
+                
+                
+                    try (
+                        OutputStream os =
+                                session.openWrite(
+                                        UUID.randomUUID().toString(),
+                                        0,
+                                        is.available()
+                                )
+                    ) {
+                
+                        Utility.pipe(is, os);
+                
+                        session.fsync(os);
+                    }
+                
+                } catch (Exception e) {
+                
+                    session.abandon();
+                
                 }
             }
 
