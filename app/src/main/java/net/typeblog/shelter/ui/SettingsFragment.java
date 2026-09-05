@@ -692,7 +692,7 @@ public class SettingsFragment extends PreferenceFragmentCompat
                     .setMessage(alertRes)
                     .setPositiveButton(
                             android.R.string.ok,
-                            (dialog, which) ->
+                            (dialogInterface, which) ->
                                     startActivity(
                                             new Intent(settingsAction)
                                     )
