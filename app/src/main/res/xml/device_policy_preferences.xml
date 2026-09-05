@@ -1,17 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android">
 
     <Preference
         android:key="apply_security_changes"
         android:title="@string/apply_security_changes"
-        android:summary="@string/apply_security_changes_summary"/>
+        android:summary="@string/apply_security_changes_summary" />
 
     <EditTextPreference
         android:key="device_lock_delay"
         android:title="@string/device_lock_delay"
         android:summary="@string/device_lock_delay_summary"
         android:defaultValue="-1"
-        android:inputType="numberSigned"/>
+        android:inputType="numberSigned" />
+
+    <net.typeblog.shelter.ui.TemporaryActionPreference
+        android:key="lock_phone_now"
+        android:title="Lock Phone Now"
+        android:summary="Press to queue an immediate device lock" />
 
 </PreferenceScreen>
