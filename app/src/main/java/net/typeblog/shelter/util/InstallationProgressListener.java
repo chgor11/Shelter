@@ -1,4 +1,6 @@
 package net.typeblog.shelter.util;
+import net.typeblog.shelter.R;
+import net.typeblog.shelter.ui.SecureActivity;
 
 import android.app.Activity;
 import android.content.pm.PackageInstaller;
@@ -7,8 +9,6 @@ import android.view.ViewGroup;
 import android.widget.ProgressBar;
 
 import androidx.appcompat.app.AlertDialog;
-
-import net.typeblog.shelter.R;
 
 public class InstallationProgressListener extends PackageInstaller.SessionCallback {
     private AlertDialog mDialog;
