@@ -686,23 +686,24 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         if (!checkPermission.check()) {
 
-            AlertDialog dialog = new AlertDialog.Builder(
-                    getContext()
-            )
-                    .setMessage(alertRes)
-                    .setPositiveButton(
-                            android.R.string.ok,
-                            (dialogInterface, which) ->
-                                    startActivity(
-                                            new Intent(settingsAction)
-                                    )
-                    )
-                    .setNegativeButton(
-                            android.R.string.cancel,
-                            (dialog, which) ->
-                                    dialog.dismiss()
-                    )
-                    .create();
+        AlertDialog dialog = new AlertDialog.Builder(
+                getContext()
+        )
+                .setMessage(alertRes)
+                .setPositiveButton(
+                        android.R.string.ok,
+                        (dialogInterface, which) ->
+                                startActivity(
+                                        new Intent(settingsAction)
+                                )
+                )
+                .setNegativeButton(
+                        android.R.string.cancel,
+                        (dialogInterface, which) ->
+                                dialogInterface.dismiss()
+                )
+                .create();
+        
         SecureActivity.secureDialog(dialog);
         dialog.show();
 
