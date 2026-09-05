@@ -40,7 +40,7 @@ import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.UriForwardProxy;
 import net.typeblog.shelter.util.Utility;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends SecureActivity {
     public static final String BROADCAST_CONTEXT_MENU_CLOSED = "net.typeblog.shelter.broadcast.CONTEXT_MENU_CLOSED";
     public static final String BROADCAST_SEARCH_FILTER_CHANGED = "net.typeblog.shelter.broadcast.SEARCH_FILTER_CHANGED";
 
