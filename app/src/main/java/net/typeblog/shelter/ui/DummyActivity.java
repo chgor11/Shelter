@@ -296,7 +296,7 @@ public class DummyActivity extends SecureActivity {
      * so Android's cross-profile intent forwarding can resolve it; the caller
      * is still authenticated with Shelter's existing signed Intent mechanism.
      */
-    public static class WorkProfileAuthenticationActivity extends FragmentActivity {
+    public static class WorkProfileAuthenticationActivity extends SecureActivity {
         private static final String TAG = "ShelterWorkProfileAuth";
 
         @Override
