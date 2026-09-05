@@ -265,35 +265,31 @@ public class DevicePolicyManagerFragment
         
             lockPhoneNow.setOnPreferenceClickListener(
                     preference -> {
-        
-                        /*
-                         * SECURITY-CRITICAL:
-                         *
-                         * TemporaryActionPreference.onClick()
-                         * has already changed the UI state to
-                         * PRESSED before this listener is invoked.
-                         *
-                         * Therefore we MUST NOT test isPressed()
-                         * here. Doing so would prevent the action
-                         * from ever being added to the transaction.
-                         *
-                         * This call ONLY creates a pending action.
-                         *
-                         * It does NOT call lockNow().
-                         */
-                        mChangeManager.addPendingAction(
-                                ACTION_LOCK_PHONE_NOW
-                        );
-        
-                        /*
-                         * The actual security operation is executed
-                         * only by SecurityPolicyChangeManager after:
-                         *
-                         * 1. Review
-                         * 2. Explicit confirmation
-                         * 3. Fresh device authentication
-                         */
-                        return true;
+                
+                            /*
+                             * SECURITY:
+                             *
+                             * This click ONLY queues the action.
+                             *
+                             * The device MUST NOT be locked here.
+                             *
+                             * The actual lock operation is performed by
+                             * SecurityPolicyChangeManager only after:
+                             *
+                             * 1. The user reviews the pending transaction.
+                             * 2. The user explicitly confirms it.
+                             * 3. Successful system device-credential authentication.
+                             *
+                             * TemporaryActionPreference.onClick() has already
+                             * changed the visual state to "pressed", therefore
+                             * isPressed() MUST NOT be used as the condition for
+                             * registering the pending action here.
+                             */
+                            mChangeManager.addPendingAction(
+                                    ACTION_LOCK_PHONE_NOW
+                            );
+                
+                            return true;
                     }
             );
         }
