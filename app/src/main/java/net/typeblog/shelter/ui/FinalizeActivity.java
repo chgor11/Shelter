@@ -6,8 +6,7 @@ import android.os.Bundle;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 
-public class FinalizeActivity extends AppCompatActivity {
-    @Override
+public class FinalizeActivity extends SecureActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         Intent i = new Intent(getApplicationContext(), DummyActivity.class);
