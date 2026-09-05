@@ -429,12 +429,18 @@ public class MainActivity extends SecureActivity {
                         .sendBroadcast(new Intent(AppListFragment.BROADCAST_REFRESH));
             };
             if (!item.isChecked()) {
-                new AlertDialog.Builder(this)
+                AlertDialog dialog = new AlertDialog.Builder(this)
                         .setMessage(R.string.show_all_warning)
-                        .setPositiveButton(R.string.first_run_alert_continue,
-                                (dialog, which) -> update.run())
-                        .setNegativeButton(R.string.first_run_alert_cancel, null)
-                        .show();
+                        .setPositiveButton(
+                                R.string.first_run_alert_continue,
+                                (dialogInterface, which) -> update.run())
+                        .setNegativeButton(
+                                R.string.first_run_alert_cancel,
+                                null)
+                        .create();
+                
+                SecureActivity.secureDialog(dialog);
+                dialog.show();
             } else {
                 update.run();
             }
