@@ -37,6 +37,7 @@ import net.typeblog.shelter.services.ShelterService;
 import net.typeblog.shelter.util.ApplicationInfoWrapper;
 import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.Utility;
+import net.typeblog.shelter.ui.SecureActivity;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -338,12 +339,17 @@ public class AppListFragment extends BaseFragment {
                     // Cannot clone non-system apps on MIUI
                     // Keep this variable intact when showing the dialog
                     final ApplicationInfoWrapper selectedApp = mSelectedApp;
-                    new AlertDialog.Builder(getContext())
+                    AlertDialog dialog = new AlertDialog.Builder(getContext())
                             .setMessage(R.string.miui_cannot_clone)
                             .setPositiveButton(android.R.string.ok, null)
-                            .setNegativeButton(R.string.continue_anyway, (diag, button) ->
-                                    installOrUninstall(selectedApp, true))
-                            .show();
+                            .setNegativeButton(
+                                    R.string.continue_anyway,
+                                    (diag, button) ->
+                                            installOrUninstall(selectedApp, true))
+                            .create();
+                    
+                    SecureActivity.secureDialog(dialog);
+                    dialog.show();
                 } else {
                     installOrUninstall(mSelectedApp, true);
                 }
