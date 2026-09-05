@@ -13,7 +13,7 @@ import androidx.fragment.app.Fragment;
 
 import net.typeblog.shelter.R;
 
-public class SettingsActivity extends AppCompatActivity {
+public class SettingsActivity extends SecureActivity {
 
     private static final int REQUEST_DEVICE_CREDENTIAL = 1001;
 
