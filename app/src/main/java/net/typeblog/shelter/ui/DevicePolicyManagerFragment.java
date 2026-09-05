@@ -246,14 +246,14 @@ public class DevicePolicyManagerFragment
          * LOCK PHONE NOW
          * ============================================================
          */
-
+        
         TemporaryActionPreference lockPhoneNow =
                 findPreference(
                         PREF_LOCK_PHONE_NOW
                 );
-
+        
         if (lockPhoneNow != null) {
-
+        
             /*
              * SECURITY:
              *
@@ -262,25 +262,37 @@ public class DevicePolicyManagerFragment
              * A newly opened page starts unpressed.
              */
             lockPhoneNow.reset();
-
+        
             lockPhoneNow.setOnPreferenceClickListener(
                     preference -> {
-
+        
                         /*
-                         * Pressing the key creates ONLY a pending
-                         * action.
+                         * SECURITY-CRITICAL:
                          *
-                         * NO lockNow() is executed here.
+                         * TemporaryActionPreference.onClick()
+                         * has already changed the UI state to
+                         * PRESSED before this listener is invoked.
+                         *
+                         * Therefore we MUST NOT test isPressed()
+                         * here. Doing so would prevent the action
+                         * from ever being added to the transaction.
+                         *
+                         * This call ONLY creates a pending action.
+                         *
+                         * It does NOT call lockNow().
                          */
-                        if (!lockPhoneNow.isPressed()) {
-
-                            lockPhoneNow.press();
-
-                            mChangeManager.addPendingAction(
-                                    ACTION_LOCK_PHONE_NOW
-                            );
-                        }
-
+                        mChangeManager.addPendingAction(
+                                ACTION_LOCK_PHONE_NOW
+                        );
+        
+                        /*
+                         * The actual security operation is executed
+                         * only by SecurityPolicyChangeManager after:
+                         *
+                         * 1. Review
+                         * 2. Explicit confirmation
+                         * 3. Fresh device authentication
+                         */
                         return true;
                     }
             );
