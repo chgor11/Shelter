@@ -61,7 +61,7 @@ import java.util.UUID;
 // that might be required to perform across user profiles
 // which is only possible through Intents that are in
 // the crossProfileIntentFilter
-public class DummyActivity extends Activity {
+public class DummyActivity extends SecureActivity {
     public static final String FINALIZE_PROVISION = "net.typeblog.shelter.action.FINALIZE_PROVISION";
     public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
     public static final String AUTHENTICATE_WORK_PROFILE = "net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE";
