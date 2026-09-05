@@ -4,6 +4,7 @@ import android.app.KeyguardManager;
 import android.content.Context;
 import android.os.Bundle;
 import android.content.Intent;
+import android.view.View;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -363,4 +364,28 @@ public class DevicePolicyManagerFragment
             }
         }
     }
+
+        @Override
+        public void onViewCreated(
+                @NonNull View view,
+                @Nullable Bundle savedInstanceState) {
+        
+            super.onViewCreated(view, savedInstanceState);
+        
+            // Make the entire Security Policy page opaque.
+            view.setBackgroundColor(
+                    android.graphics.Color.BLACK
+            );
+        
+            View recyclerView =
+                    view.findViewById(
+                            androidx.preference.R.id.recycler_view
+                    );
+        
+            if (recyclerView != null) {
+                recyclerView.setBackgroundColor(
+                        android.graphics.Color.BLACK
+                );
+            }
+        }
 }
