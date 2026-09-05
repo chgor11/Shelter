@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity;
 
 import net.typeblog.shelter.util.Utility;
 
-public class ManageSpaceActivity extends AppCompatActivity {
+public class ManageSpaceActivity extends SecureActivity {
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
