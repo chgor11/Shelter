@@ -3,27 +3,33 @@ package net.typeblog.shelter.ui;
 import android.content.Context;
 import android.util.AttributeSet;
 
-import androidx.annotation.Nullable;
 import androidx.preference.CheckBoxPreference;
 
 /**
  * SECURITY-CRITICAL TEMPORARY ACTION PREFERENCE
  *
- * This preference behaves like a push/action button with a
- * temporary checked (pressed) visual state.
+ * This preference is a UI-only transaction selector.
  *
  * SECURITY RULES:
  *
- * 1. The state is NEVER persisted.
+ * 1. The checked state is NEVER persisted.
  * 2. Every newly created instance starts unchecked.
- * 3. Pressing the key only marks the action as selected.
- * 4. Pressing the key MUST NOT execute the security operation.
- * 5. The actual operation is performed only by
+ * 3. A click only selects the action.
+ * 4. A click MUST NOT execute the security operation.
+ * 5. The actual operation is performed exclusively by
  *    SecurityPolicyChangeManager after explicit confirmation
- *    and successful authentication.
+ *    and successful fresh authentication.
  *
- * This class is intentionally reusable for any future
- * security action that needs the same behaviour.
+ * State machine:
+ *
+ *      NOT PRESSED
+ *           |
+ *         click
+ *           |
+ *           v
+ *       PRESSED
+ *
+ * A second click cannot undo the selection.
  */
 public class TemporaryActionPreference
         extends CheckBoxPreference {
@@ -55,54 +61,45 @@ public class TemporaryActionPreference
         /*
          * SECURITY-CRITICAL:
          *
-         * This preference is transient.
-         * Android Preference must never persist its checked state.
+         * This preference is transient and MUST NOT
+         * write its checked state to persistent storage.
          */
         setPersistent(false);
 
         /*
-         * Every new page starts with this action unpressed.
+         * Every newly created page starts unpressed.
          */
         setChecked(false);
     }
 
     /**
-     * Marks this action as selected.
+     * Selects the action.
      *
-     * This does NOT execute the operation.
+     * This method performs NO security operation.
      */
     public void press() {
         setChecked(true);
     }
 
     /**
-     * Clears the temporary state.
+     * Clears the temporary UI state.
      */
     public void reset() {
         setChecked(false);
     }
 
     /**
-     * Returns whether this action has been selected
-     * in the current page/transaction.
+     * Returns whether the action is currently selected.
      */
     public boolean isPressed() {
         return isChecked();
     }
 
     /**
-     * Do not allow a second click to undo the action.
+     * Prevent a second click from toggling the action off.
      *
-     * The requested behaviour is:
-     *
-     * NOT PRESSED
-     *      ↓
-     * click
-     *      ↓
-     * PRESSED
-     *
-     * and it remains pressed until the current page/transaction
-     * is discarded.
+     * The preference therefore behaves as a temporary
+     * action button rather than a normal toggle switch.
      */
     @Override
     protected void onClick() {
