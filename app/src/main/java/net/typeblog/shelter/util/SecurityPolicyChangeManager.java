@@ -40,6 +40,11 @@ public class SecurityPolicyChangeManager {
 
     private final Context context;
 
+    private final Handler lockHandler =
+            new Handler(Looper.getMainLooper());
+    
+    private Runnable pendingLockRunnable = null;
+
 
     private final Map<String, PendingSecurityChange>
             pendingChanges =
