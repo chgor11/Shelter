@@ -211,52 +211,55 @@ public class SecurityPolicyChangeManager {
 
 
 
-    private void applyDeviceLockDelay(
-            int seconds) {
-
-
-        DevicePolicyManager dpm =
-                (DevicePolicyManager)
-                        context.getSystemService(
-                                Context.DEVICE_POLICY_SERVICE);
-
-
-
-        ComponentName admin =
-                new ComponentName(
-                        context,
-                        ShelterDeviceAdminReceiver.class
-                );
-
-
+    private void applyDeviceLockDelay(int seconds) {
         /*
          * SECURITY POLICY RULE:
          *
          * DevicePolicyManager operation
          * is allowed only after authentication.
          */
-
-
+    
+        DevicePolicyManager dpm =
+                (DevicePolicyManager)
+                        context.getSystemService(
+                                Context.DEVICE_POLICY_SERVICE
+                        );
+    
+        ComponentName admin =
+                new ComponentName(
+                        context,
+                        ShelterDeviceAdminReceiver.class
+                );
+    
         if (dpm == null ||
                 !dpm.isAdminActive(admin)) {
-
             return;
         }
-
-
-
-        new Handler(
-                Looper.getMainLooper()
-        ).postDelayed(
-                () -> {
-
-
-                    if (dpm.isAdminActive(admin)) {
-
-                        dpm.lockNow();
-                    }
-
-                },
+    
+        // Always cancel a previously scheduled lock.
+        if (pendingLockRunnable != null) {
+            lockHandler.removeCallbacks(
+                    pendingLockRunnable
+            );
+            pendingLockRunnable = null;
+        }
+    
+        // -1 means: do nothing / never lock.
+        if (seconds == -1) {
+            return;
+        }
+    
+        pendingLockRunnable = () -> {
+    
+            if (dpm.isAdminActive(admin)) {
+                dpm.lockNow();
+            }
+    
+            pendingLockRunnable = null;
+        };
+    
+        lockHandler.postDelayed(
+                pendingLockRunnable,
                 seconds * 1000L
         );
     }
