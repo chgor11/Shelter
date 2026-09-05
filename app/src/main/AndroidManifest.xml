@@ -42,8 +42,11 @@
         android:resizeableActivity="false">
 
         <!-- The main activity for UI -->
-        <activity android:name=".ui.MainActivity"
+        <activity
+            android:name=".ui.MainActivity"
             android:launchMode="singleTask"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -55,24 +58,35 @@
         <activity
             android:name=".ui.ManageSpaceActivity"
             android:excludeFromRecents="true"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
             android:exported="false" />
 
         <!-- Setup Wizard -->
-        <activity android:name=".ui.SetupWizardActivity"
+        <activity
+            android:name=".ui.SetupWizardActivity"
             android:theme="@style/SuwThemeMaterial.Light"
             android:launchMode="singleTask"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
             android:exported="false"/>
 
         <!-- The Settings activity -->
-        <activity android:name=".ui.SettingsActivity"
-            android:label="@string/settings" />
+        <activity
+            android:name=".ui.SettingsActivity"
+            android:label="@string/settings"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false" />
 
         <!-- An activity that wraps intents that cross the profile boundary -->
         <!-- Needed because only cross-profile Activity intents are supported -->
-        <activity android:name=".ui.DummyActivity"
+        <activity
+            android:name=".ui.DummyActivity"
             android:excludeFromRecents="true"
             android:launchMode="singleTask"
             android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.FINALIZE_PROVISION" />
@@ -99,7 +113,9 @@
             android:name=".ui.DummyActivity$WorkProfileAuthenticationActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar">
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
+            android:theme="@style/Theme.AppCompat.Translucent.NoActionBar">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -113,6 +129,8 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar"
             android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:resizeableActivity="false"
+            android:supportsPictureInPicture="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.app.action.PROVISIONING_SUCCESSFUL" />
