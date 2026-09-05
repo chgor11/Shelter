@@ -107,7 +107,7 @@ public class DevicePolicyManagerFragment
                             } catch (NumberFormatException e) {
                 
                 
-                                new AlertDialog.Builder(requireContext())
+                                AlertDialog dialog = new AlertDialog.Builder(requireContext())
                                         .setTitle(
                                                 "Invalid Value"
                                         )
@@ -118,7 +118,9 @@ public class DevicePolicyManagerFragment
                                                 "OK",
                                                 null
                                         )
-                                        .show();
+                                        .create();
+                                SecureActivity.secureDialog(dialog);
+                                dialog.show();
                 
                 
                                 return false;
@@ -131,7 +133,7 @@ public class DevicePolicyManagerFragment
                             if (delaySeconds < -1) {
                 
                 
-                                new AlertDialog.Builder(requireContext())
+                                AlertDialog dialog = new AlertDialog.Builder(requireContext())
                                         .setTitle(
                                                 "Invalid Value"
                                         )
@@ -142,7 +144,9 @@ public class DevicePolicyManagerFragment
                                                 "OK",
                                                 null
                                         )
-                                        .show();
+                                        .create();
+                                SecureActivity.secureDialog(dialog);
+                                dialog.show();
                 
                 
                                 return false;
@@ -159,7 +163,7 @@ public class DevicePolicyManagerFragment
                             if (delaySeconds > 86400) {
                 
                 
-                                new AlertDialog.Builder(requireContext())
+                                AlertDialog dialog = new AlertDialog.Builder(requireContext())
                                         .setTitle(
                                                 "Invalid Value"
                                         )
@@ -170,7 +174,9 @@ public class DevicePolicyManagerFragment
                                                 "OK",
                                                 null
                                         )
-                                        .show();
+                                        .create();
+                                SecureActivity.secureDialog(dialog);
+                                dialog.show();
                 
                 
                                 return false;
@@ -244,7 +250,7 @@ public class DevicePolicyManagerFragment
         if (summary == null ||
                 summary.isEmpty()) {
 
-            new AlertDialog.Builder(requireContext())
+            AlertDialog dialog = new AlertDialog.Builder(requireContext())
                     .setTitle(
                             "No Pending Changes"
                     )
@@ -255,13 +261,15 @@ public class DevicePolicyManagerFragment
                             "OK",
                             null
                     )
-                    .show();
+                    .create();
+            SecureActivity.secureDialog(dialog);
+            dialog.show();
 
             return;
         }
 
 
-        new AlertDialog.Builder(requireContext())
+        AlertDialog dialog = new AlertDialog.Builder(requireContext())
                 .setTitle(
                         "Confirm Security Changes"
                 )
@@ -277,7 +285,9 @@ public class DevicePolicyManagerFragment
                             requestAuthentication();
 
                         })
-                .show();
+                .create();
+        SecureActivity.secureDialog(dialog);
+        dialog.show();
     }
 
 
