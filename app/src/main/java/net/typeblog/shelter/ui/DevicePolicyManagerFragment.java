@@ -128,7 +128,7 @@ public class DevicePolicyManagerFragment
                 
                             // Prevent negative values
                 
-                            if (delaySeconds < 0) {
+                            if (delaySeconds < -1) {
                 
                 
                                 new AlertDialog.Builder(requireContext())
@@ -187,7 +187,7 @@ public class DevicePolicyManagerFragment
                             if (oldValue == null ||
                                     oldValue.isEmpty()) {
                 
-                                oldValue = "0";
+                                oldValue = "-1";
                             }
                 
                 
@@ -209,7 +209,7 @@ public class DevicePolicyManagerFragment
                             );
                 
                 
-                            return true;
+                            return false;
                         });
         }
 
