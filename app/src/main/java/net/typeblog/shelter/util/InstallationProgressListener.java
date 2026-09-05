@@ -32,6 +32,9 @@ public class InstallationProgressListener extends PackageInstaller.SessionCallba
                 .setTitle(R.string.app_installing)
                 .setView(layout)
                 .create();
+        
+        SecureActivity.secureDialog(mDialog);
+        
         mDialog.show();
     }
 
