@@ -377,7 +377,7 @@ public class DummyActivity extends SecureActivity {
                 // No PIN/pattern/password exists for this profile.
                 // The requested policy treats this as successful authentication.
                 if (availability == BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL) {
-                    finishAuthentication(Activity.RESULT_OK);
+                    finishAuthentication(Activity.RESULT_CANCELED);
                     return;
                 }
 
