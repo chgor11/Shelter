@@ -32,7 +32,7 @@ import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.Utility;
 
-public class SetupWizardActivity extends AppCompatActivity {
+public class SetupWizardActivity extends SecureActivity {
     // RESUME_SETUP should be used when MainActivity detects the provisioning has been
     // finished by the system, but the Shelter inside the profile has never been brought up
     // due to the user having not clicked on the notification yet (on Android 7 or lower).
