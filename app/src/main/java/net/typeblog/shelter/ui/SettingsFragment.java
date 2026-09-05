@@ -686,7 +686,7 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         if (!checkPermission.check()) {
 
-            new AlertDialog.Builder(
+            AlertDialog dialog = new AlertDialog.Builder(
                     getContext()
             )
                     .setMessage(alertRes)
@@ -702,7 +702,9 @@ public class SettingsFragment extends PreferenceFragmentCompat
                             (dialog, which) ->
                                     dialog.dismiss()
                     )
-                    .show();
+                    .create();
+        SecureActivity.secureDialog(dialog);
+        dialog.show();
 
             return false;
 
