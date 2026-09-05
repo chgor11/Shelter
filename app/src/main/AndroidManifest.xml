@@ -115,7 +115,7 @@
             android:exported="true"
             android:resizeableActivity="false"
             android:supportsPictureInPicture="false"
-            android:theme="@style/Theme.AppCompat.Translucent.NoActionBar">
+            android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE" />
                 <category android:name="android.intent.category.DEFAULT" />
