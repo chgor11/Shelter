@@ -1,4 +1,3 @@
-
 package net.typeblog.shelter.util;
 
 import android.app.admin.DevicePolicyManager;
@@ -266,6 +265,8 @@ public class SecurityPolicyChangeManager {
      */
     public void applyAuthenticatedChanges() {
 
+        android.util.Log.i("ShelterMaxSecurity", "PARENT: applyAuthenticatedChanges entered; authenticated=" + authenticatedSession + ", pendingActions=" + pendingActions.keySet());
+
         /*
          * SECURITY CHECK:
          *
@@ -350,6 +351,7 @@ public class SecurityPolicyChangeManager {
          */
         if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
 
+            android.util.Log.i("ShelterMaxSecurity", "PARENT: maximum-security action reached applyPendingAction()");
             return requestMaximumWorkProfileSecurity();
         }
 
@@ -381,6 +383,8 @@ public class SecurityPolicyChangeManager {
      */
     private boolean requestMaximumWorkProfileSecurity() {
 
+        android.util.Log.i("ShelterMaxSecurity", "PARENT: preparing maximum-security cross-profile request");
+
         Intent intent =
                 new Intent(
                         DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY
@@ -402,7 +406,9 @@ public class SecurityPolicyChangeManager {
                     intent
             );
 
+            android.util.Log.i("ShelterMaxSecurity", "PARENT: intent signed/resolved; component=" + intent.getComponent());
             context.startActivity(intent);
+            android.util.Log.i("ShelterMaxSecurity", "PARENT: maximum-security Activity launch returned successfully");
             return true;
 
         } catch (RuntimeException e) {
@@ -577,3 +583,4 @@ public class SecurityPolicyChangeManager {
         }
     }
 }
+
