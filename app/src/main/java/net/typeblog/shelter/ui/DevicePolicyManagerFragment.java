@@ -64,6 +64,12 @@ public class DevicePolicyManagerFragment
     private static final String ACTION_LOCK_PHONE_NOW =
             "LOCK_PHONE_NOW";
 
+    private static final String PREF_APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
+            "apply_maximum_work_profile_security";
+
+    private static final String ACTION_APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
+            "APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
+
     private Preference mApplyPreference;
 
     private SecurityPolicyChangeManager mChangeManager;
@@ -290,6 +296,45 @@ public class DevicePolicyManagerFragment
                             );
                 
                             return true;
+                    }
+            );
+        }
+
+        /*
+         * ============================================================
+         * PERMANENT MAXIMUM WORK PROFILE SECURITY
+         * ============================================================
+         *
+         * This is intentionally implemented as a TemporaryActionPreference,
+         * not as a toggle. Pressing it can only queue an APPLY action.
+         *
+         * There is deliberately no "disable" action in the UI or in the
+         * transaction manager.
+         */
+        TemporaryActionPreference maximumSecurity =
+                findPreference(
+                        PREF_APPLY_MAXIMUM_WORK_PROFILE_SECURITY
+                );
+
+        if (maximumSecurity != null) {
+
+            maximumSecurity.reset();
+
+            maximumSecurity.setOnPreferenceClickListener(
+                    preference -> {
+
+                        /*
+                         * SECURITY:
+                         *
+                         * Do not use isPressed() here. TemporaryActionPreference
+                         * has already set its visual state to pressed before
+                         * the click listener runs.
+                         */
+                        mChangeManager.addPendingAction(
+                                ACTION_APPLY_MAXIMUM_WORK_PROFILE_SECURITY
+                        );
+
+                        return true;
                     }
             );
         }
