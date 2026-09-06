@@ -432,6 +432,8 @@ public class DevicePolicyManagerFragment
 
     private void requestAuthentication() {
 
+        android.util.Log.i("ShelterMaxSecurity", "PARENT: requestAuthentication() entered");
+
     /*
      * SECURITY POLICY AUTHENTICATION
      *
@@ -539,6 +541,8 @@ public class DevicePolicyManagerFragment
         if (requestCode ==
                 REQUEST_POLICY_AUTH) {
 
+            android.util.Log.i("ShelterMaxSecurity", "PARENT: authentication result=" + resultCode);
+
             if (resultCode ==
                     android.app.Activity.RESULT_OK) {
 
@@ -546,6 +550,7 @@ public class DevicePolicyManagerFragment
                  * Authentication is valid only
                  * for this current transaction.
                  */
+                android.util.Log.i("ShelterMaxSecurity", "PARENT: authentication SUCCESS; authorizing transaction");
                 mChangeManager
                         .authorizeCurrentTransaction();
 
@@ -564,6 +569,7 @@ public class DevicePolicyManagerFragment
                  *
                  * No pending operation is executed.
                  */
+                android.util.Log.w("ShelterMaxSecurity", "PARENT: authentication CANCELED/FAILED");
                 mChangeManager
                         .clearAuthenticationSession();
             }
