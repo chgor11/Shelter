@@ -1,3 +1,4 @@
+
 package net.typeblog.shelter.util;
 
 import android.app.admin.DevicePolicyManager;
@@ -313,16 +314,10 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
-         * Destroy the normal value-change transaction immediately.
-         *
-         * IMPORTANT:
-         *
-         * Do NOT clear pendingActions here. A failed cross-profile
-         * dispatch is intentionally kept pending so the user can retry
-         * it after the Work Profile becomes available. Successfully
-         * dispatched actions have already been removed above.
+         * Destroy the transaction immediately.
          */
         pendingChanges.clear();
+        pendingActions.clear();
 
         /*
          * Authentication is destroyed immediately.
