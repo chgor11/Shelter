@@ -77,6 +77,7 @@ public class DummyActivity extends SecureActivity {
      */
     public static final String APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
             "net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
+    private static final String MAX_SECURITY_LOG_TAG = "ShelterMaxSecurity";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
