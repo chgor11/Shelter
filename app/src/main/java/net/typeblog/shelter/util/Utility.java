@@ -203,6 +203,19 @@ public class Utility {
                 new IntentFilter(DummyActivity.SECURITY_RESPONSE),
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
+        /*
+         * SECURITY-CRITICAL:
+         *
+         * Parent -> Work Profile request for the permanent maximum
+         * security policy. The receiving DummyActivity still requires
+         * AuthenticationUtility.checkIntent(); the cross-profile filter
+         * alone is NOT an authorization mechanism.
+         */
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY),
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
         // Allow ACTION_SEND and ACTION_SEND_MULTIPLE to cross from managed to parent
         IntentFilter actionSendFilter = new IntentFilter();
         actionSendFilter.addAction(Intent.ACTION_SEND);
