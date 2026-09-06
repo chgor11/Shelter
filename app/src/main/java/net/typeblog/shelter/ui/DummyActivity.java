@@ -16,6 +16,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.UserManager;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.StrictMode;
@@ -66,6 +67,16 @@ public class DummyActivity extends SecureActivity {
     public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
     public static final String AUTHENTICATE_WORK_PROFILE = "net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE";
     public static final String SECURITY_RESPONSE = "net.typeblog.shelter.action.SECURITY_RESPONSE";
+    /**
+     * SECURITY-CRITICAL:
+     *
+     * Parent-profile request that permanently applies the configured
+     * maximum Work Profile password/security policy. This action MUST
+     * remain signature-protected; it must never be added to either
+     * unsigned-action allow-list.
+     */
+    public static final String APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
+            "net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
@@ -207,6 +218,8 @@ public class DummyActivity extends SecureActivity {
             actionSynchronizePreference();
         } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
             actionSecurityResponse();
+        } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
+            actionApplyMaximumWorkProfileSecurity();
         } else {
             finish();
         }
@@ -881,6 +894,346 @@ public class DummyActivity extends SecureActivity {
             Utility.enforceWorkProfilePolicies(this);
             Utility.enforceUserRestrictions(this);
         }
+        finish();
+    }
+
+    /*
+     * ============================================================
+     * PERMANENT MAXIMUM WORK PROFILE SECURITY POLICY
+     * ============================================================
+     *
+     * SECURITY-CRITICAL:
+     *
+     * This operation is intentionally one-way from Shelter's point
+     * of view. There is no matching "remove" or "disable" action.
+     *
+     * The request has already passed AuthenticationUtility.checkIntent()
+     * in init(). We additionally require this process to be the Work
+     * Profile owner before touching DevicePolicyManager.
+     *
+     * The permanent latch is written ONLY after every requested policy
+     * has been applied and read back successfully.
+     *
+     * IMPORTANT:
+     *
+     * Android's PASSWORD_QUALITY_COMPLEX and setPasswordMinimum* APIs
+     * are deprecated since API 31, but they are intentionally used here
+     * because this Shelter policy requires exact character-class
+     * requirements. The project targets API 35. The APIs remain part of
+     * the Android 16 framework and are guarded by PASSWORD_QUALITY_COMPLEX
+     * before the minimum-character setters are called.
+     *
+     * DO NOT replace this with PASSWORD_COMPLEXITY_HIGH: that platform
+     * complexity API does not express the exact requirements below.
+     */
+    @SuppressWarnings("deprecation")
+    private void actionApplyMaximumWorkProfileSecurity() {
+
+        if (!mIsProfileOwner) {
+            finish();
+            return;
+        }
+
+        final ComponentName admin =
+                new ComponentName(
+                        this,
+                        ShelterDeviceAdminReceiver.class
+                );
+
+        if (mPolicyManager == null ||
+                !mPolicyManager.isProfileOwnerApp(getPackageName())) {
+            finish();
+            return;
+        }
+
+        /*
+         * SECURITY-CRITICAL:
+         *
+         * Idempotence / one-way latch.
+         *
+         * Once the complete policy has been successfully applied and
+         * verified, every later request is a harmless no-op. There is
+         * deliberately no code path that reverses these policies.
+         */
+        if (LocalStorageManager.getInstance().getBoolean(
+                LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED)) {
+            finish();
+            return;
+        }
+
+        /*
+         * The requested password length is 65 characters.
+         *
+         * getPasswordMaximumLength() is a capability check, not a
+         * policy read-back. If the device cannot represent a 65-character
+         * password for PASSWORD_QUALITY_COMPLEX, do not mark the policy
+         * as permanently applied.
+         */
+        final int requiredMinimumLength = 65;
+        final int maximumSupportedLength =
+                mPolicyManager.getPasswordMaximumLength(
+                        DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
+                );
+
+        if (maximumSupportedLength < requiredMinimumLength) {
+            android.util.Log.e(
+                    "ShelterMaxSecurity",
+                    "Device cannot support required 65-character Work Profile password. " +
+                            "Maximum supported length=" + maximumSupportedLength
+            );
+            finish();
+            return;
+        }
+
+        /*
+         * The exact password-history length was not specified in the
+         * policy list. Five previous passwords is therefore kept as an
+         * explicit project constant until the desired value is finalized.
+         */
+        final int passwordHistoryLength = 5;
+
+        final long maximumTimeToLock =
+                20L * 60L * 1000L; // 20 minutes
+
+        final long passwordExpirationTimeout =
+                30L * 24L * 60L * 60L * 1000L; // 30 days
+
+        try {
+            /*
+             * PASSWORD_QUALITY_COMPLEX MUST be set FIRST.
+             *
+             * On apps targeting Android R or newer, the
+             * setPasswordMinimum* methods require this quality to have
+             * been selected first.
+             */
+            mPolicyManager.setPasswordQuality(
+                    admin,
+                    DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
+            );
+
+            mPolicyManager.setPasswordMinimumLength(
+                    admin,
+                    requiredMinimumLength
+            );
+
+            mPolicyManager.setPasswordMinimumLetters(
+                    admin,
+                    10
+            );
+
+            mPolicyManager.setPasswordMinimumUpperCase(
+                    admin,
+                    5
+            );
+
+            mPolicyManager.setPasswordMinimumLowerCase(
+                    admin,
+                    5
+            );
+
+            mPolicyManager.setPasswordMinimumNumeric(
+                    admin,
+                    10
+            );
+
+            mPolicyManager.setPasswordMinimumSymbols(
+                    admin,
+                    10
+            );
+
+            mPolicyManager.setPasswordMinimumNonLetter(
+                    admin,
+                    20
+            );
+
+            mPolicyManager.setMaximumFailedPasswordsForWipe(
+                    admin,
+                    5
+            );
+
+            mPolicyManager.setPasswordHistoryLength(
+                    admin,
+                    passwordHistoryLength
+            );
+
+            mPolicyManager.setMaximumTimeToLock(
+                    admin,
+                    maximumTimeToLock
+            );
+
+            mPolicyManager.setPasswordExpirationTimeout(
+                    admin,
+                    passwordExpirationTimeout
+            );
+
+            /*
+             * Require a separate Work Profile challenge.
+             */
+            mPolicyManager.addUserRestriction(
+                    admin,
+                    UserManager.DISALLOW_UNIFIED_PASSWORD
+            );
+
+        } catch (RuntimeException e) {
+
+            /*
+             * SECURITY:
+             *
+             * Do NOT set the permanent latch if any policy operation
+             * fails. Some earlier setters may already have succeeded;
+             * there is intentionally no "undo" operation because this
+             * feature is one-way. A later signed request may retry the
+             * remaining configuration.
+             */
+            android.util.Log.e(
+                    "ShelterMaxSecurity",
+                    "Failed while applying maximum Work Profile security policy",
+                    e
+            );
+
+            finish();
+            return;
+        }
+
+        /*
+         * ============================================================
+         * READ-BACK VERIFICATION
+         * ============================================================
+         *
+         * Do not trust successful setter calls alone. Every policy for
+         * which Android exposes a direct read-back API is verified here.
+         */
+        try {
+
+            boolean verified =
+                    mPolicyManager.getPasswordQuality(admin)
+                            == DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
+                    && mPolicyManager.getPasswordMinimumLength(admin)
+                            == requiredMinimumLength
+                    && mPolicyManager.getPasswordMinimumLetters(admin)
+                            == 10
+                    && mPolicyManager.getPasswordMinimumUpperCase(admin)
+                            == 5
+                    && mPolicyManager.getPasswordMinimumLowerCase(admin)
+                            == 5
+                    && mPolicyManager.getPasswordMinimumNumeric(admin)
+                            == 10
+                    && mPolicyManager.getPasswordMinimumSymbols(admin)
+                            == 10
+                    && mPolicyManager.getPasswordMinimumNonLetter(admin)
+                            == 20
+                    && mPolicyManager.getMaximumFailedPasswordsForWipe(admin)
+                            == 5
+                    && mPolicyManager.getPasswordHistoryLength(admin)
+                            == passwordHistoryLength
+                    && mPolicyManager.getMaximumTimeToLock(admin)
+                            == maximumTimeToLock
+                    && mPolicyManager.getPasswordExpirationTimeout(admin)
+                            == passwordExpirationTimeout;
+
+            /*
+             * Verify the restriction was actually installed by this
+             * profile owner.
+             */
+            Bundle restrictions =
+                    mPolicyManager.getUserRestrictions(admin);
+
+            verified = verified &&
+                    restrictions.getBoolean(
+                            UserManager.DISALLOW_UNIFIED_PASSWORD,
+                            false
+                    );
+
+            /*
+             * IMPORTANT:
+             *
+             * isUsingUnifiedPassword() is a resulting profile state,
+             * not the read-back value of the restriction itself.
+             *
+             * DISALLOW_UNIFIED_PASSWORD can be successfully installed
+             * while Android still needs the user to complete the
+             * separate Work Profile password enrollment. Therefore we
+             * verify the restriction here, then handle the resulting
+             * credential-enrollment state below.
+             */
+
+            if (!verified) {
+
+                android.util.Log.e(
+                        "ShelterMaxSecurity",
+                        "Maximum Work Profile security policy read-back verification failed"
+                );
+
+                /*
+                 * Never set the permanent latch after incomplete
+                 * verification.
+                 */
+                finish();
+                return;
+            }
+
+        } catch (RuntimeException e) {
+
+            android.util.Log.e(
+                    "ShelterMaxSecurity",
+                    "Exception while verifying maximum Work Profile security policy",
+                    e
+            );
+
+            finish();
+            return;
+        }
+
+        /*
+         * ============================================================
+         * PERMANENT LATCH
+         * ============================================================
+         *
+         * This is deliberately the LAST operation.
+         *
+         * Once true, a later APPLY request is a no-op and there is no
+         * Shelter code path that clears this flag or reverses the
+         * security policy.
+         */
+        LocalStorageManager.getInstance().setBoolean(
+                LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED,
+                true
+        );
+
+        /*
+         * The policy may be active while the existing password is still
+         * too weak. Android deliberately does not replace the current
+         * password when a minimum policy is tightened.
+         *
+         * If the current Work Profile credential is insufficient, launch
+         * the system password-change flow. The policy itself remains
+         * permanently active even if the user cancels that flow.
+         */
+        try {
+            /*
+             * If Android still reports a unified challenge, the user must
+             * complete the separate Work Profile credential enrollment.
+             */
+            if (mPolicyManager.isUsingUnifiedPassword(admin) ||
+                    !mPolicyManager.isActivePasswordSufficient()) {
+
+                Intent setNewPassword =
+                        new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD);
+                setNewPassword.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(setNewPassword);
+            }
+        } catch (RuntimeException e) {
+            /*
+             * The permanent policy is already committed. Failure to open
+             * the optional password-change UI must NOT roll the policy back.
+             */
+            android.util.Log.e(
+                    "ShelterMaxSecurity",
+                    "Maximum policy applied, but current password could not be evaluated/changed",
+                    e
+            );
+        }
+
         finish();
     }
 
