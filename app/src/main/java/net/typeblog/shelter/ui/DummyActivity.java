@@ -990,7 +990,7 @@ public class DummyActivity extends SecureActivity {
          * policy list. Five previous passwords is therefore kept as an
          * explicit project constant until the desired value is finalized.
          */
-        final int passwordHistoryLength = 5;
+        final int passwordHistoryLength = 100;
 
         final long maximumTimeToLock =
                 20L * 60L * 1000L; // 20 minutes
