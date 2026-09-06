@@ -27,6 +27,17 @@ public class LocalStorageManager {
     public static final String PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL =
             "allow_work_profile_app_install_uninstall";
 
+    /*
+     * SECURITY-CRITICAL:
+     *
+     * This flag is stored in the Work Profile copy of Shelter.
+     * It is a one-way latch for the maximum Work Profile security
+     * policy transaction. It is NEVER used as a UI toggle and there
+     * is intentionally no code path that clears it after success.
+     */
+    public static final String PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED =
+            "maximum_work_profile_security_applied";
+
     private static LocalStorageManager sInstance = null;
     private SharedPreferences mPrefs = null;
 
