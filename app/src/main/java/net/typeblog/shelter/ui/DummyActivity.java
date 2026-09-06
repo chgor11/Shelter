@@ -986,11 +986,11 @@ public class DummyActivity extends SecureActivity {
         }
 
         /*
-         * The exact password-history length was not specified in the
-         * policy list. Five previous passwords is therefore kept as an
-         * explicit project constant until the desired value is finalized.
+         * A history length of 1 means the immediately previous password
+         * cannot be reused. This directly implements the requirement that
+         * the previous Work Profile password must not be reused.
          */
-        final int passwordHistoryLength = 100;
+        final int passwordHistoryLength = 1;
 
         final long maximumTimeToLock =
                 20L * 60L * 1000L; // 20 minutes

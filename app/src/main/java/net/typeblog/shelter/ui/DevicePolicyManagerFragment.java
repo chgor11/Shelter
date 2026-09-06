@@ -67,14 +67,9 @@ public class DevicePolicyManagerFragment
     private static final String PREF_APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
             "apply_maximum_work_profile_security";
 
-    private static final String ACTION_APPLY_MAXIMUM_WORK_PROFILE_SECURITY =
-            "APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
-
     private Preference mApplyPreference;
 
     private SecurityPolicyChangeManager mChangeManager;
-
-    private boolean authenticationRequested = false;
 
     @Override
     public void onCreatePreferences(
@@ -333,7 +328,7 @@ public class DevicePolicyManagerFragment
                          * the click listener runs.
                          */
                         mChangeManager.addPendingAction(
-                                ACTION_APPLY_MAXIMUM_WORK_PROFILE_SECURITY
+                                DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY
                         );
 
                         return true;
@@ -522,14 +517,6 @@ public class DevicePolicyManagerFragment
 
             return;
         }
-
-    /*
-     * Mark that this specific transaction has requested
-     * authentication.
-     *
-     * No security policy is applied at this point.
-     */
-        authenticationRequested = true;
 
         startActivityForResult(
                 intent,
