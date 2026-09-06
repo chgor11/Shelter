@@ -390,6 +390,25 @@ public class DevicePolicyManagerFragment
 
     private void requestAuthentication() {
 
+    /*
+     * SECURITY POLICY AUTHENTICATION
+     *
+     * This authentication is intentionally restricted to the
+     * device's PIN / pattern / password.
+     *
+     * DO NOT use BiometricPrompt here with:
+     *
+     *     DEVICE_CREDENTIAL | BIOMETRIC_STRONG
+     *
+     * or any other biometric authenticator.
+     *
+     * Fingerprint and Face Unlock must NOT authorize the
+     * application of pending security-policy changes.
+     *
+     * The transaction is authorized only when Android's
+     * device-credential confirmation activity returns RESULT_OK.
+     */
+
         KeyguardManager keyguardManager =
                 (KeyguardManager)
                         requireContext()
@@ -397,26 +416,78 @@ public class DevicePolicyManagerFragment
                                         Context.KEYGUARD_SERVICE
                                 );
 
+    /*
+     * A secure device credential must exist.
+     *
+     * If the device has no PIN/pattern/password configured,
+     * the security-policy transaction cannot be authorized.
+     */
         if (keyguardManager == null ||
                 !keyguardManager.isKeyguardSecure()) {
+
+            mChangeManager.clearAuthenticationSession();
+
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("Authentication Required")
+                    .setMessage(
+                            "A device PIN, pattern, or password must be configured before security changes can be applied."
+                    )
+                    .setPositiveButton(
+                            android.R.string.ok,
+                            null
+                    )
+                    .show();
 
             return;
         }
 
+    /*
+     * IMPORTANT:
+     *
+     * createConfirmDeviceCredentialIntent() deliberately requests
+     * DEVICE CREDENTIAL authentication rather than biometric
+     * authentication.
+     *
+     * Therefore fingerprint and Face Unlock are not used to
+     * authorize this transaction.
+     */
         Intent intent =
                 keyguardManager
                         .createConfirmDeviceCredentialIntent(
                                 "Authentication required",
-                                "Authenticate to apply security changes"
+                                "Enter your PIN, pattern, or password to apply security changes."
                         );
 
-        if (intent != null) {
+        if (intent == null) {
 
-            startActivityForResult(
-                    intent,
-                    REQUEST_POLICY_AUTH
-            );
+            mChangeManager.clearAuthenticationSession();
+
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("Authentication Unavailable")
+                    .setMessage(
+                            "Device credential authentication is currently unavailable."
+                    )
+                    .setPositiveButton(
+                            android.R.string.ok,
+                            null
+                    )
+                    .show();
+
+            return;
         }
+
+    /*
+     * Mark that this specific transaction has requested
+     * authentication.
+     *
+     * No security policy is applied at this point.
+     */
+        authenticationRequested = true;
+
+        startActivityForResult(
+                intent,
+                REQUEST_POLICY_AUTH
+        );
     }
 
     @Override
