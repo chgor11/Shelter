@@ -74,6 +74,8 @@ public class DevicePolicyManagerFragment
 
     private SecurityPolicyChangeManager mChangeManager;
 
+    private boolean authenticationRequested = false;
+
     @Override
     public void onCreatePreferences(
             Bundle savedInstanceState,
