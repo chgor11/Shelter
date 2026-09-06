@@ -102,6 +102,7 @@
                 <action android:name="net.typeblog.shelter.action.START_FILE_SHUTTLE" />
                 <action android:name="net.typeblog.shelter.action.START_FILE_SHUTTLE_2" />
                 <action android:name="net.typeblog.shelter.action.SYNCHRONIZE_PREFERENCE" />
+                <action android:name="net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY" />
                 <action android:name="net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
