@@ -2,11 +2,13 @@ package net.typeblog.shelter.util;
 
 import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
+import net.typeblog.shelter.ui.DummyActivity;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -218,6 +220,18 @@ public class SecurityPolicyChangeManager {
 
                 result.append("\n\n");
             }
+
+            if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(
+                    action.getActionId())) {
+
+                result.append(
+                        "Action: Permanently apply maximum Work Profile security"
+                );
+
+                result.append("\nStatus: Requested");
+
+                result.append("\n\n");
+            }
         }
 
         return result.toString();
@@ -318,6 +332,17 @@ public class SecurityPolicyChangeManager {
 
             lockPhoneNow();
         }
+
+        /*
+         * The maximum Work Profile security action is NOT applied in
+         * the parent profile. We send a signed request across the
+         * profile boundary; the Work Profile's Profile Owner performs
+         * and verifies the actual DevicePolicyManager operations.
+         */
+        if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
+
+            requestMaximumWorkProfileSecurity();
+        }
     }
 
     /**
@@ -328,6 +353,40 @@ public class SecurityPolicyChangeManager {
      *
      * Therefore the UI cannot execute this operation directly.
      */
+    /*
+     * SECURITY-CRITICAL:
+     *
+     * This method only requests the operation in the Work Profile.
+     * It MUST NOT call the Work Profile DevicePolicyManager directly
+     * from the parent profile.
+     *
+     * AuthenticationUtility signs the request before it crosses the
+     * profile boundary. DummyActivity in the Work Profile verifies that
+     * signature and then verifies Profile Owner status again.
+     *
+     * The parent process does not directly claim that the Work Profile
+     * policy has already been applied; the authoritative latch lives in
+     * the Work Profile copy of LocalStorageManager.
+     */
+    private void requestMaximumWorkProfileSecurity() {
+
+        Intent intent =
+                new Intent(
+                        DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY
+                );
+
+        intent.setFlags(
+                Intent.FLAG_ACTIVITY_NEW_TASK
+        );
+
+        Utility.transferIntentToProfile(
+                context,
+                intent
+        );
+
+        context.startActivity(intent);
+    }
+
     private void lockPhoneNow() {
 
         DevicePolicyManager dpm =
