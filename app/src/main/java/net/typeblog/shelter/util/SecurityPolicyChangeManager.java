@@ -300,16 +300,29 @@ public class SecurityPolicyChangeManager {
                 new ArrayList<>(
                         pendingActions.values())) {
 
-            applyPendingAction(
-                    action.getActionId()
-            );
+            /*
+             * A cross-profile request can fail before it reaches the
+             * Work Profile (for example, if the profile is unavailable).
+             * In that case the action MUST remain pending so that the
+             * user can retry after the profile becomes available.
+             * A successfully dispatched request is removed below.
+             */
+            if (applyPendingAction(action.getActionId())) {
+                pendingActions.remove(action.getActionId());
+            }
         }
 
         /*
-         * Destroy the transaction immediately.
+         * Destroy the normal value-change transaction immediately.
+         *
+         * IMPORTANT:
+         *
+         * Do NOT clear pendingActions here. A failed cross-profile
+         * dispatch is intentionally kept pending so the user can retry
+         * it after the Work Profile becomes available. Successfully
+         * dispatched actions have already been removed above.
          */
         pendingChanges.clear();
-        pendingActions.clear();
 
         /*
          * Authentication is destroyed immediately.
@@ -325,12 +338,13 @@ public class SecurityPolicyChangeManager {
      * ============================================================
      */
 
-    private void applyPendingAction(
+    private boolean applyPendingAction(
             String actionId) {
 
         if (ACTION_LOCK_PHONE_NOW.equals(actionId)) {
 
             lockPhoneNow();
+            return true;
         }
 
         /*
@@ -341,8 +355,10 @@ public class SecurityPolicyChangeManager {
          */
         if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
 
-            requestMaximumWorkProfileSecurity();
+            return requestMaximumWorkProfileSecurity();
         }
+
+        return false;
     }
 
     /**
@@ -368,7 +384,7 @@ public class SecurityPolicyChangeManager {
      * policy has already been applied; the authoritative latch lives in
      * the Work Profile copy of LocalStorageManager.
      */
-    private void requestMaximumWorkProfileSecurity() {
+    private boolean requestMaximumWorkProfileSecurity() {
 
         Intent intent =
                 new Intent(
@@ -379,12 +395,36 @@ public class SecurityPolicyChangeManager {
                 Intent.FLAG_ACTIVITY_NEW_TASK
         );
 
-        Utility.transferIntentToProfile(
-                context,
-                intent
-        );
+        try {
+            /*
+             * SECURITY-CRITICAL: both profile discovery and Intent
+             * signing must succeed before the request is considered
+             * dispatched. If either step fails, keep the action pending
+             * instead of silently consuming it.
+             */
+            Utility.transferIntentToProfile(
+                    context,
+                    intent
+            );
 
-        context.startActivity(intent);
+            context.startActivity(intent);
+            return true;
+
+        } catch (RuntimeException e) {
+            /*
+             * Expected failures include an unavailable Work Profile, no
+             * resolvable cross-profile target, or an Activity launch
+             * failure. This is a dispatch failure, NOT a policy failure.
+             * Do not clear the pending action; the user must be able to
+             * retry it after the Work Profile becomes available.
+             */
+            android.util.Log.e(
+                    "ShelterMaxSecurity",
+                    "Unable to dispatch maximum Work Profile security request",
+                    e
+            );
+            return false;
+        }
     }
 
     private void lockPhoneNow() {
