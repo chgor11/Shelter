@@ -143,8 +143,11 @@ public class DummyActivity extends SecureActivity {
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: DummyActivity.onCreate action=" + getIntent().getAction() + ", package=" + getPackageName());
+
         mPolicyManager = getSystemService(DevicePolicyManager.class);
         mIsProfileOwner = mPolicyManager.isProfileOwnerApp(getPackageName());
+        android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: ProfileOwner=" + mIsProfileOwner);
         if (mIsProfileOwner) {
             // If we are the profile owner, enforce all Work Profile policies.
             Utility.enforceWorkProfilePolicies(this);
@@ -180,17 +183,22 @@ public class DummyActivity extends SecureActivity {
         // First check if we have a registered request from the same process
         // if it passes, we don't have to check if it has proper signature any more
         if (!checkSameProcessRequest(getIntent())) {
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: init action=" + intent.getAction() + "; checking cross-profile authentication signature");
             // Check the intent signature first
             // Call checkIntent() first, because we might receive an auth_key from the other side any time.
             // Calling checkIntent() will ensure that the first auth_key is properly received.
             // ONLY the first received one should be stored and trusted.
             if (!AuthenticationUtility.checkIntent(intent)) {
+                android.util.Log.e(MAX_SECURITY_LOG_TAG, "WORK: AUTHENTICATION SIGNATURE CHECK FAILED for action=" + intent.getAction());
                 // If check failed and not in allowed-without-signature list
                 if (!ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
                     // Unauthenticated! Just exit IMMEDIATELY
                     finish();
                     return;
                 }
+            }
+            else {
+                android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: AUTHENTICATION SIGNATURE CHECK OK for action=" + intent.getAction());
             }
         }
 
@@ -929,7 +937,10 @@ public class DummyActivity extends SecureActivity {
     @SuppressWarnings("deprecation")
     private void actionApplyMaximumWorkProfileSecurity() {
 
+        android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: actionApplyMaximumWorkProfileSecurity ENTERED");
+
         if (!mIsProfileOwner) {
+            android.util.Log.e(MAX_SECURITY_LOG_TAG, "WORK: ABORT - not Profile Owner");
             finish();
             return;
         }
@@ -942,6 +953,7 @@ public class DummyActivity extends SecureActivity {
 
         if (mPolicyManager == null ||
                 !mPolicyManager.isProfileOwnerApp(getPackageName())) {
+            android.util.Log.e(MAX_SECURITY_LOG_TAG, "WORK: ABORT - DPM null or Profile Owner recheck failed");
             finish();
             return;
         }
@@ -957,6 +969,7 @@ public class DummyActivity extends SecureActivity {
          */
         if (LocalStorageManager.getInstance().getBoolean(
                 LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED)) {
+            android.util.Log.w(MAX_SECURITY_LOG_TAG, "WORK: NO-OP - permanent latch already set");
             finish();
             return;
         }
@@ -970,10 +983,18 @@ public class DummyActivity extends SecureActivity {
          * as permanently applied.
          */
         final int requiredMinimumLength = 65;
-        final int maximumSupportedLength =
-                mPolicyManager.getPasswordMaximumLength(
-                        DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
-                );
+        final int maximumSupportedLength;
+        try {
+            maximumSupportedLength =
+                    mPolicyManager.getPasswordMaximumLength(
+                            DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
+                    );
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: getPasswordMaximumLength(COMPLEX)=" + maximumSupportedLength + "; required=65");
+        } catch (RuntimeException e) {
+            android.util.Log.e(MAX_SECURITY_LOG_TAG, "WORK: ABORT - getPasswordMaximumLength() threw an exception", e);
+            finish();
+            return;
+        }
 
         if (maximumSupportedLength < requiredMinimumLength) {
             android.util.Log.e(
@@ -1006,61 +1027,74 @@ public class DummyActivity extends SecureActivity {
              * setPasswordMinimum* methods require this quality to have
              * been selected first.
              */
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: applying setPasswordQuality(COMPLEX)");
             mPolicyManager.setPasswordQuality(
                     admin,
                     DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
             );
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordQuality OK");
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumLength=" + requiredMinimumLength);
             mPolicyManager.setPasswordMinimumLength(
                     admin,
                     requiredMinimumLength
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumLetters=10");
             mPolicyManager.setPasswordMinimumLetters(
                     admin,
                     10
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumUpperCase=5");
             mPolicyManager.setPasswordMinimumUpperCase(
                     admin,
                     5
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumLowerCase=5");
             mPolicyManager.setPasswordMinimumLowerCase(
                     admin,
                     5
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumNumeric=10");
             mPolicyManager.setPasswordMinimumNumeric(
                     admin,
                     10
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumSymbols=10");
             mPolicyManager.setPasswordMinimumSymbols(
                     admin,
                     10
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordMinimumNonLetter=20");
             mPolicyManager.setPasswordMinimumNonLetter(
                     admin,
                     20
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setMaximumFailedPasswordsForWipe=5");
             mPolicyManager.setMaximumFailedPasswordsForWipe(
                     admin,
                     5
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordHistoryLength=1");
             mPolicyManager.setPasswordHistoryLength(
                     admin,
                     passwordHistoryLength
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setMaximumTimeToLock=" + maximumTimeToLock);
             mPolicyManager.setMaximumTimeToLock(
                     admin,
                     maximumTimeToLock
             );
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: setPasswordExpirationTimeout=" + passwordExpirationTimeout);
             mPolicyManager.setPasswordExpirationTimeout(
                     admin,
                     passwordExpirationTimeout
@@ -1069,10 +1103,12 @@ public class DummyActivity extends SecureActivity {
             /*
              * Require a separate Work Profile challenge.
              */
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: addUserRestriction(DISALLOW_UNIFIED_PASSWORD)");
             mPolicyManager.addUserRestriction(
                     admin,
                     UserManager.DISALLOW_UNIFIED_PASSWORD
             );
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: all policy setters returned successfully");
 
         } catch (RuntimeException e) {
 
@@ -1086,8 +1122,8 @@ public class DummyActivity extends SecureActivity {
              * remaining configuration.
              */
             android.util.Log.e(
-                    "ShelterMaxSecurity",
-                    "Failed while applying maximum Work Profile security policy",
+                    MAX_SECURITY_LOG_TAG,
+                    "WORK: FAILED while applying maximum Work Profile security policy",
                     e
             );
 
@@ -1138,6 +1174,8 @@ public class DummyActivity extends SecureActivity {
             Bundle restrictions =
                     mPolicyManager.getUserRestrictions(admin);
 
+            android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: restriction DISALLOW_UNIFIED_PASSWORD=" + restrictions.getBoolean(UserManager.DISALLOW_UNIFIED_PASSWORD, false));
+
             verified = verified &&
                     restrictions.getBoolean(
                             UserManager.DISALLOW_UNIFIED_PASSWORD,
@@ -1160,7 +1198,7 @@ public class DummyActivity extends SecureActivity {
             if (!verified) {
 
                 android.util.Log.e(
-                        "ShelterMaxSecurity",
+                        MAX_SECURITY_LOG_TAG,
                         "Maximum Work Profile security policy read-back verification failed"
                 );
 
@@ -1175,8 +1213,8 @@ public class DummyActivity extends SecureActivity {
         } catch (RuntimeException e) {
 
             android.util.Log.e(
-                    "ShelterMaxSecurity",
-                    "Exception while verifying maximum Work Profile security policy",
+                    MAX_SECURITY_LOG_TAG,
+                    "WORK: exception while verifying maximum Work Profile security policy",
                     e
             );
 
@@ -1199,6 +1237,8 @@ public class DummyActivity extends SecureActivity {
                 LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED,
                 true
         );
+
+        android.util.Log.i(MAX_SECURITY_LOG_TAG, "WORK: SUCCESS - all policies verified; permanent latch SET");
 
         /*
          * The policy may be active while the existing password is still
@@ -1292,3 +1332,4 @@ public class DummyActivity extends SecureActivity {
         finish();
     }
 }
+
