@@ -20,4 +20,9 @@
         android:title="Lock Phone Now"
         android:summary="Press to queue an immediate device lock" />
 
+    <net.typeblog.shelter.ui.TemporaryActionPreference
+        android:key="apply_maximum_work_profile_security"
+        android:title="Apply Maximum Work Profile Security"
+        android:summary="Permanently apply the configured maximum security policy to the Work Profile" />
+
 </PreferenceScreen>
