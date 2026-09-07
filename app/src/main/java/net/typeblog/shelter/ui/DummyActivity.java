@@ -969,10 +969,7 @@ public class DummyActivity extends SecureActivity {
          * as permanently applied.
          */
         final int requiredMinimumLength = 65;
-        final int maximumSupportedLength =
-                mPolicyManager.getPasswordMaximumLength(
-                        DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
-                );
+        final int maximumSupportedLength = mPolicyManager.getPasswordMaximumLength( DevicePolicyManager.PASSWORD_QUALITY_COMPLEX );
 
         if (maximumSupportedLength < requiredMinimumLength) {
             finish();
@@ -1201,6 +1198,7 @@ public class DummyActivity extends SecureActivity {
                 startActivity(setNewPassword);
             }
         } catch (RuntimeException e) {
+            finish()
             /*
              * The permanent policy is already committed. Failure to open
              * the optional password-change UI must NOT roll the policy back.
@@ -1238,6 +1236,14 @@ public class DummyActivity extends SecureActivity {
                         admin,
                         keyguardFlags
                 );
+
+            } catch (SecurityException e) {
+                finish()
+            }
+
+        } catch (SecurityException e) {
+            finish()
+        }
     
         finish();
     }
