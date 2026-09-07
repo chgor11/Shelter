@@ -214,7 +214,7 @@ public class Utility {
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
         // Allow ACTION_SEND and ACTION_SEND_MULTIPLE to cross from managed to parent
         IntentFilter actionSendFilter = new IntentFilter();
