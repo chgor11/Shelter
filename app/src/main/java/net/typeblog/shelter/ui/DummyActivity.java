@@ -1198,7 +1198,7 @@ public class DummyActivity extends SecureActivity {
                 startActivity(setNewPassword);
             }
         } catch (RuntimeException e) {
-            finish()
+            finish();
             /*
              * The permanent policy is already committed. Failure to open
              * the optional password-change UI must NOT roll the policy back.
@@ -1238,11 +1238,11 @@ public class DummyActivity extends SecureActivity {
                 );
 
             } catch (SecurityException e) {
-                finish()
+                finish();
             }
 
         } catch (SecurityException e) {
-            finish()
+            finish();
         }
     
         finish();
