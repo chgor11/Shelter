@@ -265,8 +265,6 @@ public class SecurityPolicyChangeManager {
      */
     public void applyAuthenticatedChanges() {
 
-        android.util.Log.i("ShelterMaxSecurity", "PARENT: applyAuthenticatedChanges entered; authenticated=" + authenticatedSession + ", pendingActions=" + pendingActions.keySet());
-
         /*
          * SECURITY CHECK:
          *
@@ -315,7 +313,14 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
-         * Destroy the transaction immediately.
+         * Destroy the normal value-change transaction immediately.
+         *
+         * IMPORTANT:
+         *
+         * Do NOT clear pendingActions here. A failed cross-profile
+         * dispatch is intentionally kept pending so the user can retry
+         * it after the Work Profile becomes available. Successfully
+         * dispatched actions have already been removed above.
          */
         pendingChanges.clear();
         pendingActions.clear();
@@ -350,8 +355,6 @@ public class SecurityPolicyChangeManager {
          * and verifies the actual DevicePolicyManager operations.
          */
         if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
-
-            android.util.Log.i("ShelterMaxSecurity", "PARENT: maximum-security action reached applyPendingAction()");
             return requestMaximumWorkProfileSecurity();
         }
 
@@ -383,8 +386,6 @@ public class SecurityPolicyChangeManager {
      */
     private boolean requestMaximumWorkProfileSecurity() {
 
-        android.util.Log.i("ShelterMaxSecurity", "PARENT: preparing maximum-security cross-profile request");
-
         Intent intent =
                 new Intent(
                         DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY
@@ -406,9 +407,7 @@ public class SecurityPolicyChangeManager {
                     intent
             );
 
-            android.util.Log.i("ShelterMaxSecurity", "PARENT: intent signed/resolved; component=" + intent.getComponent());
             context.startActivity(intent);
-            android.util.Log.i("ShelterMaxSecurity", "PARENT: maximum-security Activity launch returned successfully");
             return true;
 
         } catch (RuntimeException e) {
@@ -419,11 +418,6 @@ public class SecurityPolicyChangeManager {
              * Do not clear the pending action; the user must be able to
              * retry it after the Work Profile becomes available.
              */
-            android.util.Log.e(
-                    "ShelterMaxSecurity",
-                    "Unable to dispatch maximum Work Profile security request",
-                    e
-            );
             return false;
         }
     }
