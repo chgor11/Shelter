@@ -123,7 +123,13 @@
             </intent-filter>
         </activity>
 
-        <!-- An activity to listen to ACTION_PROVISIONING_SUCCESSFUL for finalization -->
+                <!-- Notification-only entry point for creating a fresh signed
+             PUBLIC_FREEZE_ALL request at click time. -->
+        <receiver
+            android:name=".receivers.FreezeAllNowReceiver"
+            android:exported="false" />
+
+<!-- An activity to listen to ACTION_PROVISIONING_SUCCESSFUL for finalization -->
         <!-- This replaces the functionality of ShelterDeviceAdminReceiver on Oreo and above -->
         <activity android:name=".ui.FinalizeActivity"
             android:excludeFromRecents="true"
@@ -230,3 +236,4 @@
     </application>
 
 </manifest>
+
