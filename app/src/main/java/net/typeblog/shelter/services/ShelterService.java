@@ -22,6 +22,7 @@ import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
 import net.typeblog.shelter.ui.DummyActivity;
 import net.typeblog.shelter.util.ApplicationInfoWrapper;
 import net.typeblog.shelter.util.FileProviderProxy;
+import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.UriForwardProxy;
 import net.typeblog.shelter.util.Utility;
 
@@ -142,7 +143,7 @@ public class ShelterService extends Service {
                 callbackExtra.putBinder("callback", callback.asBinder());
                 intent.putExtra("callback", callbackExtra);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                DummyActivity.registerSameProcessRequest(intent);
+                AuthenticationUtility.signIntent(intent);
                 if (mStartActivityProxy != null)
                     try {
 
@@ -193,7 +194,7 @@ public class ShelterService extends Service {
             intent.putExtra("callback", callbackExtra);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            DummyActivity.registerSameProcessRequest(intent);
+            AuthenticationUtility.signIntent(intent);
             if (mStartActivityProxy != null)
                 try {
 
@@ -223,7 +224,7 @@ public class ShelterService extends Service {
                 callbackExtra.putBinder("callback", callback.asBinder());
                 intent.putExtra("callback", callbackExtra);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                DummyActivity.registerSameProcessRequest(intent);
+                AuthenticationUtility.signIntent(intent);
 
                 if (mStartActivityProxy != null)
                     if (mStartActivityProxy != null) {
