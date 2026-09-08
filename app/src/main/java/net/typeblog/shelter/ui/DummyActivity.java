@@ -46,6 +46,7 @@ import net.typeblog.shelter.util.InstallationProgressListener;
 import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.Utility;
+import net.typeblog.shelter.util.WorkProfileAuthenticationState;
 
 import java.io.File;
 import java.io.IOException;
@@ -102,6 +103,25 @@ public class DummyActivity extends SecureActivity {
             INSTALL_PACKAGE,
             UNINSTALL_PACKAGE,
             UNFREEZE_AND_LAUNCH);
+
+    /**
+     * SECURITY-CRITICAL:
+     * These actions require BOTH a valid HMAC intent signature and a fresh
+     * Work Profile credential authentication lease. The lease is process-local
+     * to the Work Profile and expires after five minutes.
+     *
+     * Do not add TRY_START_SERVICE here: MainActivity must be able to use that
+     * pre-authentication probe to discover whether the Work Profile is enabled.
+     * Do not add SECURITY_RESPONSE: it is a security/admin lifecycle response
+     * and must remain usable independently of the user authentication lease.
+     */
+    private static final List<String> ACTIONS_REQUIRING_AUTHENTICATION_LEASE = Arrays.asList(
+            START_SERVICE,
+            FREEZE_ALL_IN_LIST,
+            START_FILE_SHUTTLE,
+            START_FILE_SHUTTLE_2,
+            SYNCHRONIZE_PREFERENCE,
+            APPLY_MAXIMUM_WORK_PROFILE_SECURITY);
 
     private static final int REQUEST_INSTALL_PACKAGE = 1;
     private static final int REQUEST_PERMISSION_EXTERNAL_STORAGE= 2;
@@ -176,21 +196,40 @@ public class DummyActivity extends SecureActivity {
     private void init() {
         Intent intent = getIntent();
 
-        // First check if we have a registered request from the same process
-        // if it passes, we don't have to check if it has proper signature any more
-        if (!checkSameProcessRequest(getIntent())) {
-            // Check the intent signature first
-            // Call checkIntent() first, because we might receive an auth_key from the other side any time.
-            // Calling checkIntent() will ensure that the first auth_key is properly received.
-            // ONLY the first received one should be stored and trusted.
+        // First check if we have a registered request from the same process.
+        // If it passes, the existing same-process exception remains valid.
+        boolean sameProcessRequest = checkSameProcessRequest(intent);
+
+        if (!sameProcessRequest) {
+            // Check the intent signature first.
+            // Calling checkIntent() also ensures that the first auth_key is
+            // properly received and trusted.
             if (!AuthenticationUtility.checkIntent(intent)) {
-                // If check failed and not in allowed-without-signature list
+                // If check failed and not in allowed-without-signature list,
+                // reject the request immediately.
                 if (!ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
-                    // Unauthenticated! Just exit IMMEDIATELY
                     finish();
                     return;
                 }
             }
+        }
+
+        /*
+         * SECURITY-CRITICAL:
+         * For security-sensitive HMAC-protected operations, a valid signature
+         * alone is not sufficient. A fresh Work Profile device-credential
+         * authentication must also have been completed within the last five
+         * minutes. This check is performed inside the Work Profile at the
+         * moment the action is received, so the UI countdown can never extend
+         * the actual security window.
+         *
+         * The same-process exception above is intentionally preserved for the
+         * existing INSTALL/UNINSTALL/UNFREEZE flow.
+         */
+        if (ACTIONS_REQUIRING_AUTHENTICATION_LEASE.contains(intent.getAction())
+                && !WorkProfileAuthenticationState.isValid()) {
+            finish();
+            return;
         }
 
         if (START_SERVICE.equals(intent.getAction())) {            actionStartService();
@@ -415,7 +454,23 @@ public class DummyActivity extends SecureActivity {
                                         BiometricPrompt.AuthenticationResult result) {
                                     if (result.getAuthenticationType() ==
                                             BiometricPrompt.AUTHENTICATION_RESULT_TYPE_DEVICE_CREDENTIAL) {
-                                        finishAuthentication(Activity.RESULT_OK);
+                                        // SECURITY-CRITICAL:
+                                        // Grant the five-minute lease only inside
+                                        // the Work Profile process after a real
+                                        // Work Profile device-credential success.
+                                        long expiresAt =
+                                                WorkProfileAuthenticationState.grant();
+
+                                        Intent resultIntent = new Intent();
+                                        resultIntent.putExtra(
+                                                WorkProfileAuthenticationState.EXTRA_AUTH_EXPIRES_AT,
+                                                expiresAt);
+
+                                        Activity activity = getActivity();
+                                        if (activity != null && !activity.isFinishing()) {
+                                            activity.setResult(Activity.RESULT_OK, resultIntent);
+                                            activity.finish();
+                                        }
                                     } else {
                                         finishAuthentication(Activity.RESULT_CANCELED);
                                     }
