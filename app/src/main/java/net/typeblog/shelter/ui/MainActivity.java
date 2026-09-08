@@ -275,6 +275,7 @@ public class MainActivity extends SecureActivity {
         if (remaining <= 0L) {
             mWorkAuthenticationSucceeded = false;
             mWorkAuthenticationExpiresAt = 0L;
+            mServiceWork = null;
             mAuthenticationTimerHandler.removeCallbacks(mAuthenticationTimer);
 
             if (getSupportActionBar() != null) {
@@ -282,6 +283,11 @@ public class MainActivity extends SecureActivity {
                 // five-minute authentication window has ended.
                 getSupportActionBar().setSubtitle("00:00");
             }
+
+            // The old Work Profile Binder is no longer retained by MainActivity.
+            // A fresh authentication is required before a new START_SERVICE
+            // request can create the next service connection.
+            authenticateWorkProfile();
             return;
         }
 
