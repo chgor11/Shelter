@@ -54,7 +54,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -92,32 +91,46 @@ public class DummyActivity extends SecureActivity {
     public static final String SYNCHRONIZE_PREFERENCE = "net.typeblog.shelter.action.SYNCHRONIZE_PREFERENCE";
     public static final String PACKAGEINSTALLER_CALLBACK = "net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK";
 
-    // Only these actions are allowed without a valid signature
+    // SECURITY-CRITICAL:
+    // Every management action below must carry a valid HMAC signature.
+    // FINALIZE_PROVISION remains the only unsigned lifecycle exception.
     private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE = Arrays.asList(
-            FINALIZE_PROVISION,
-            PUBLIC_FREEZE_ALL);
+            FINALIZE_PROVISION);
 
-    // Only these actions are allowed to be called from the same process (pre-registered)
-    // without a valid signature
-    private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE_SAME_PROCESS = Arrays.asList(
-            INSTALL_PACKAGE,
-            UNINSTALL_PACKAGE,
-            UNFREEZE_AND_LAUNCH);
+    /**
+     * SECURITY-CRITICAL:
+     * The old same-process exception has been removed for management actions.
+     * Being in Shelter's process is NOT a substitute for HMAC authentication.
+     *
+     * registerSameProcessRequest() is therefore no longer used for INSTALL,
+     * UNINSTALL or UNFREEZE_AND_LAUNCH.
+     */
 
     /**
      * SECURITY-CRITICAL:
      * These actions require BOTH a valid HMAC intent signature and a fresh
-     * Work Profile credential authentication lease. The lease is process-local
-     * to the Work Profile and expires after five minutes.
+     * Work Profile credential authentication lease.
      *
-     * Do not add TRY_START_SERVICE here: MainActivity must be able to use that
-     * pre-authentication probe to discover whether the Work Profile is enabled.
-     * Do not add SECURITY_RESPONSE: it is a security/admin lifecycle response
-     * and must remain usable independently of the user authentication lease.
+     * The lease is checked only in the Profile Owner (Work Profile) instance.
+     * Parent-profile DummyActivity instances are routing/proxy stages; they
+     * must not check the Work Profile's process-local lease because that lease
+     * deliberately does not cross the profile/process boundary.
+     *
+     * PUBLIC_FREEZE_ALL is intentionally not in this list: it is a parent-side
+     * routing entry. It must be HMAC-signed, and it immediately forwards a
+     * signed FREEZE_ALL_IN_LIST request to the Work Profile, where the actual
+     * freeze operation is protected by the five-minute lease.
+     *
+     * Do not add TRY_START_SERVICE here: it is a pre-authentication availability
+     * probe. Do not add SECURITY_RESPONSE: it is a security/admin lifecycle
+     * response and must remain usable independently of the user lease.
      */
     private static final List<String> ACTIONS_REQUIRING_AUTHENTICATION_LEASE = Arrays.asList(
             START_SERVICE,
             FREEZE_ALL_IN_LIST,
+            INSTALL_PACKAGE,
+            UNINSTALL_PACKAGE,
+            UNFREEZE_AND_LAUNCH,
             START_FILE_SHUTTLE,
             START_FILE_SHUTTLE_2,
             SYNCHRONIZE_PREFERENCE,
@@ -128,35 +141,6 @@ public class DummyActivity extends SecureActivity {
     private static final int REQUEST_PERMISSION_POST_NOTIFICATIONS = 3;
 
     private static boolean sHasRequestedPermission = false;
-
-    // A state variable to record the last time DummyActivity was informed that someone
-    // in the same process needs to call an action without signature
-    // Since they must be in the same process as DummyActivity, it will be totally fine
-    // to share a memory state
-    private static volatile long sLastSameProcessRequest = -1;
-
-    // Register that an intent will be sent to this Activity without signature
-    // from the same process. Each registration is allowed for at most 5 seconds.
-    public static synchronized void registerSameProcessRequest(Intent intent) {
-        sLastSameProcessRequest = new Date().getTime();
-        intent.putExtra("is_same_process", true);
-    }
-
-    private static synchronized boolean checkSameProcessRequest(Intent intent) {
-        if (!intent.getBooleanExtra("is_same_process", false)) return false;
-        if (sLastSameProcessRequest == -1) return false;
-
-        boolean ret = new Date().getTime() - sLastSameProcessRequest <= 5000 // Timeout 5s
-                && ACTIONS_ALLOWED_WITHOUT_SIGNATURE_SAME_PROCESS.contains(intent.getAction());
-        if (ret) {
-            sLastSameProcessRequest = -1; // Revoke the registered request
-        }
-
-        return ret;
-    }
-
-    private boolean mIsProfileOwner = false;
-    private DevicePolicyManager mPolicyManager = null;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -196,37 +180,26 @@ public class DummyActivity extends SecureActivity {
     private void init() {
         Intent intent = getIntent();
 
-        // First check if we have a registered request from the same process.
-        // If it passes, the existing same-process exception remains valid.
-        boolean sameProcessRequest = checkSameProcessRequest(intent);
-
-        if (!sameProcessRequest) {
-            // Check the intent signature first.
-            // Calling checkIntent() also ensures that the first auth_key is
-            // properly received and trusted.
-            if (!AuthenticationUtility.checkIntent(intent)) {
-                // If check failed and not in allowed-without-signature list,
-                // reject the request immediately.
-                if (!ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
-                    finish();
-                    return;
-                }
-            }
+        /*
+         * SECURITY-CRITICAL:
+         * HMAC authentication is mandatory for every management action.
+         * The only unsigned exception is the provisioning lifecycle action
+         * explicitly listed above.
+         */
+        if (!AuthenticationUtility.checkIntent(intent)
+                && !ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
+            finish();
+            return;
         }
 
         /*
          * SECURITY-CRITICAL:
-         * For security-sensitive HMAC-protected operations, a valid signature
-         * alone is not sufficient. A fresh Work Profile device-credential
-         * authentication must also have been completed within the last five
-         * minutes. This check is performed inside the Work Profile at the
-         * moment the action is received, so the UI countdown can never extend
-         * the actual security window.
-         *
-         * The same-process exception above is intentionally preserved for the
-         * existing INSTALL/UNINSTALL/UNFREEZE flow.
+         * The five-minute lease is authoritative only in the Work Profile
+         * Profile Owner process. Parent-profile DummyActivity instances only
+         * validate HMAC and forward the request to the Work Profile.
          */
-        if (ACTIONS_REQUIRING_AUTHENTICATION_LEASE.contains(intent.getAction())
+        if (mIsProfileOwner
+                && ACTIONS_REQUIRING_AUTHENTICATION_LEASE.contains(intent.getAction())
                 && !WorkProfileAuthenticationState.isValid()) {
             finish();
             return;
@@ -1303,4 +1276,3 @@ public class DummyActivity extends SecureActivity {
         finish();
     }
 }
-
