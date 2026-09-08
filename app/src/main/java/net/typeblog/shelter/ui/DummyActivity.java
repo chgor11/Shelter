@@ -94,8 +94,9 @@ public class DummyActivity extends SecureActivity {
     // SECURITY-CRITICAL:
     // Every management action below must carry a valid HMAC signature.
     // FINALIZE_PROVISION remains the only unsigned lifecycle exception.
-    private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE = Arrays.asList(
-            FINALIZE_PROVISION);
+    // Only this provisioning action is allowed without an HMAC signature.
+    // All operational/security-sensitive actions must be authenticated.
+    private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE = Arrays.asList(FINALIZE_PROVISION);
 
     /**
      * SECURITY-CRITICAL:
@@ -125,22 +126,25 @@ public class DummyActivity extends SecureActivity {
      * probe. Do not add SECURITY_RESPONSE: it is a security/admin lifecycle
      * response and must remain usable independently of the user lease.
      */
-    private static final List<String> ACTIONS_REQUIRING_AUTHENTICATION_LEASE = Arrays.asList(
-            START_SERVICE,
-            FREEZE_ALL_IN_LIST,
-            INSTALL_PACKAGE,
-            UNINSTALL_PACKAGE,
-            UNFREEZE_AND_LAUNCH,
-            START_FILE_SHUTTLE,
-            START_FILE_SHUTTLE_2,
-            SYNCHRONIZE_PREFERENCE,
-            APPLY_MAXIMUM_WORK_PROFILE_SECURITY);
+    private static final List<String> ACTIONS_REQUIRING_AUTHENTICATION_LEASE =
+            Arrays.asList(
+                    START_SERVICE,
+                    FREEZE_ALL_IN_LIST,
+                    START_FILE_SHUTTLE,
+                    START_FILE_SHUTTLE_2,
+                    SYNCHRONIZE_PREFERENCE,
+                    APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
+                    INSTALL_PACKAGE,
+                    UNINSTALL_PACKAGE,
+                    UNFREEZE_AND_LAUNCH);
 
     private static final int REQUEST_INSTALL_PACKAGE = 1;
     private static final int REQUEST_PERMISSION_EXTERNAL_STORAGE= 2;
     private static final int REQUEST_PERMISSION_POST_NOTIFICATIONS = 3;
 
     private static boolean sHasRequestedPermission = false;
+    private boolean mIsProfileOwner = false;
+    private DevicePolicyManager mPolicyManager = null;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
