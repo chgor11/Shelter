@@ -18,7 +18,7 @@ import androidx.annotation.Nullable;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
-import net.typeblog.shelter.ui.DummyActivity;
+import net.typeblog.shelter.receivers.FreezeAllNowReceiver;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.Utility;
 
@@ -158,10 +158,11 @@ public class FreezeService extends Service {
 
         // Add a quick action to freeze all applications in list right now
         // by just reusing the intent for the "freeze all" desktop shortcut
-        Intent intentFreeze = new Intent(DummyActivity.PUBLIC_FREEZE_ALL);
-        // The intent for the shortcut lives in the main profile, while this
-        // service runs in the work profile.
-        Utility.transferIntentToProfileUnsigned(this, intentFreeze);
+        Intent intentFreeze = new Intent(this, FreezeAllNowReceiver.class);
+        // The notification PendingIntent is the protected UI entry. The
+        // receiver creates a fresh HMAC-signed PUBLIC_FREEZE_ALL intent at
+        // click time, avoiding a 30-second timestamp embedded in the
+        // notification when it was originally created.
         notification.actions = new Notification.Action[] {
                 new Notification.Action.Builder(
                         null, getString(R.string.service_auto_freeze_now),
@@ -173,3 +174,4 @@ public class FreezeService extends Service {
         startForeground(NOTIFICATION_ID, notification);
     }
 }
+
