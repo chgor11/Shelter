@@ -40,6 +40,7 @@ import net.typeblog.shelter.services.IAppInstallCallback;
 import net.typeblog.shelter.services.IShelterService;
 import net.typeblog.shelter.services.IStartActivityProxy;
 import net.typeblog.shelter.services.KillerService;
+import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.UriForwardProxy;
@@ -49,6 +50,11 @@ import net.typeblog.shelter.util.WorkProfileAuthenticationState;
 public class MainActivity extends SecureActivity {
     public static final String BROADCAST_CONTEXT_MENU_CLOSED = "net.typeblog.shelter.broadcast.CONTEXT_MENU_CLOSED";
     public static final String BROADCAST_SEARCH_FILTER_CHANGED = "net.typeblog.shelter.broadcast.SEARCH_FILTER_CHANGED";
+    // Launcher shortcuts cannot contain a timestamped HMAC that remains valid
+    // indefinitely. The shortcut therefore launches MainActivity with this
+    // internal action; MainActivity creates a fresh signed request at click time.
+    public static final String ACTION_FREEZE_ALL_SHORTCUT =
+            "net.typeblog.shelter.action.FREEZE_ALL_SHORTCUT";
 
     private final ActivityResultLauncher<Void> mStartSetup =
             registerForActivityResult(new SetupWizardActivity.SetupWizardContract(), this::setupWizardCb);
@@ -117,9 +123,19 @@ public class MainActivity extends SecureActivity {
         if (getSystemService(DevicePolicyManager.class).isProfileOwnerApp(getPackageName())) {
             android.util.Log.d("MainActivity", "started in user profile. stopping.");
             finish();
+        } else if (ACTION_FREEZE_ALL_SHORTCUT.equals(getIntent().getAction())) {
+            launchSignedPublicFreezeAll();
+            finish();
         } else {
             init();
         }
+    }
+
+    private void launchSignedPublicFreezeAll() {
+        Intent intent = new Intent(DummyActivity.PUBLIC_FREEZE_ALL);
+        intent.setComponent(new ComponentName(this, DummyActivity.class));
+        AuthenticationUtility.signIntent(intent);
+        startActivity(intent);
     }
 
     private void init() {
@@ -488,9 +504,7 @@ public class MainActivity extends SecureActivity {
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemId = item.getItemId();
         if (itemId == R.id.main_menu_freeze_all) {
-            Intent intent = new Intent(DummyActivity.PUBLIC_FREEZE_ALL);
-            intent.setComponent(new ComponentName(this, DummyActivity.class));
-            startActivity(intent);
+            launchSignedPublicFreezeAll();
             return true;
         } else if (itemId == R.id.main_menu_settings) {
             Intent settingsIntent = new Intent(this, SettingsActivity.class);
@@ -500,8 +514,8 @@ public class MainActivity extends SecureActivity {
             startActivity(settingsIntent);
             return true;
         } else if (itemId == R.id.main_menu_create_freeze_all_shortcut) {
-            Intent launchIntent = new Intent(DummyActivity.PUBLIC_FREEZE_ALL);
-            launchIntent.setComponent(new ComponentName(this, DummyActivity.class));
+            Intent launchIntent = new Intent(this, MainActivity.class);
+            launchIntent.setAction(ACTION_FREEZE_ALL_SHORTCUT);
             launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK);
             Utility.createLauncherShortcut(this, launchIntent,
                     Icon.createWithResource(this, R.mipmap.ic_freeze),
@@ -563,3 +577,4 @@ public class MainActivity extends SecureActivity {
         }
     }
 }
+
