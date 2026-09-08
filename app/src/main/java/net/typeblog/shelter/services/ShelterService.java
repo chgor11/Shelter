@@ -25,6 +25,7 @@ import net.typeblog.shelter.util.FileProviderProxy;
 import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.UriForwardProxy;
 import net.typeblog.shelter.util.Utility;
+import net.typeblog.shelter.util.WorkProfileAuthenticationState;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -49,6 +50,22 @@ public class ShelterService extends Service {
     // Note that this proxy can only start activity that is accessible to the
     // main profile and within the application itself.
     private IStartActivityProxy mStartActivityProxy = null;
+    /**
+     * SECURITY-CRITICAL:
+     *
+     * The Work Profile ShelterService Binder may outlive the five-minute
+     * authentication lease held by the Work Profile process. Every sensitive
+     * state-changing Binder operation therefore checks the lease at the point
+     * of execution. The Binder reference itself is not the security boundary.
+     */
+    private void requireAuthenticationLease() {
+        if (mIsProfileOwner
+                && !WorkProfileAuthenticationState.isValid()) {
+            throw new SecurityException(
+                    "Work Profile authentication lease expired");
+        }
+    }
+
     private IShelterService.Stub mBinder = new IShelterService.Stub() {
         @Override
         public void ping() {
@@ -127,6 +144,7 @@ public class ShelterService extends Service {
 
         @Override
         public void installApp(ApplicationInfoWrapper app, IAppInstallCallback callback) throws RemoteException {
+            requireAuthenticationLease();
             if (!app.isSystem()) {
                 // Installing a non-system app requires firing up PackageInstaller
                 // Delegate this operation to DummyActivity because
@@ -179,6 +197,7 @@ public class ShelterService extends Service {
 
         @Override
         public void installApk(UriForwardProxy uriForwarder, IAppInstallCallback callback) throws RemoteException {
+            requireAuthenticationLease();
             // Directly install an APK through a given Fd
             // instead of installing an existing one
             Intent intent = new Intent(DummyActivity.INSTALL_PACKAGE);
@@ -213,6 +232,7 @@ public class ShelterService extends Service {
 
         @Override
         public void uninstallApp(ApplicationInfoWrapper app, IAppInstallCallback callback) throws RemoteException {
+            requireAuthenticationLease();
             if (!app.isSystem()) {
                 // Similarly, fire up DummyActivity to do uninstallation for us
                 Intent intent = new Intent(DummyActivity.UNINSTALL_PACKAGE);
@@ -259,6 +279,7 @@ public class ShelterService extends Service {
 
         @Override
         public void freezeApp(ApplicationInfoWrapper app) {
+            requireAuthenticationLease();
             if (!mIsProfileOwner)
                 throw new IllegalArgumentException("Cannot freeze app without being profile owner");
 
@@ -269,6 +290,7 @@ public class ShelterService extends Service {
 
         @Override
         public void unfreezeApp(ApplicationInfoWrapper app) {
+            requireAuthenticationLease();
             if (!mIsProfileOwner)
                 throw new IllegalArgumentException("Cannot unfreeze app without being profile owner");
 
@@ -301,6 +323,7 @@ public class ShelterService extends Service {
 
         @Override
         public boolean setCrossProfileWidgetProviderEnabled(String pkgName, boolean enabled) {
+            requireAuthenticationLease();
             if (!mIsProfileOwner)
                 throw new IllegalStateException("Cannot access cross-profile widget providers without being profile owner");
             if (enabled) {
@@ -326,6 +349,7 @@ public class ShelterService extends Service {
 
         @Override
         public void setCrossProfilePackages(List<String> packages) throws RemoteException {
+            requireAuthenticationLease();
             if (!mIsProfileOwner)
                 throw new IllegalStateException("Cannot access cross-profile packages without being profile owner");
             if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
