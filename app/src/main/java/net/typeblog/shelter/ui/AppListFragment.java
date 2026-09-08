@@ -35,6 +35,7 @@ import net.typeblog.shelter.services.IGetAppsCallback;
 import net.typeblog.shelter.services.IShelterService;
 import net.typeblog.shelter.services.ShelterService;
 import net.typeblog.shelter.util.ApplicationInfoWrapper;
+import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.Utility;
 import net.typeblog.shelter.ui.SecureActivity;
@@ -385,7 +386,7 @@ public class AppListFragment extends BaseFragment {
                 intent.setComponent(new ComponentName(getContext(), DummyActivity.class));
                 intent.putExtra("packageName", mSelectedApp.getPackageName());
                 intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                DummyActivity.registerSameProcessRequest(intent);
+                AuthenticationUtility.signIntent(intent);
                 startActivity(intent);
                 return true;
             case MENU_ITEM_AUTO_FREEZE:
