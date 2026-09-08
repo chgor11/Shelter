@@ -18,6 +18,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.UserManager;
 import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.RemoteException;
 import android.os.StrictMode;
 import android.view.LayoutInflater;
@@ -469,7 +472,11 @@ public class DummyActivity extends SecureActivity {
     private void actionStartService() {
         // This needs to be foreground because this activity won't be able to hold
         // the ServiceConnection to it.
-        ((ShelterApplication) getApplication()).bindShelterService(new ServiceConnection() {
+        final ShelterApplication application = (ShelterApplication) getApplication();
+        final long sessionExpiresAt =
+                WorkProfileAuthenticationState.getExpiresAtElapsedRealtime();
+
+        application.bindShelterService(new ServiceConnection() {
             @Override
             public void onServiceConnected(ComponentName name, IBinder service) {
                 Intent data = new Intent();
@@ -477,6 +484,36 @@ public class DummyActivity extends SecureActivity {
                 bundle.putBinder("service", service);
                 data.putExtra("extra", bundle);
                 setResult(RESULT_OK, data);
+
+                /*
+                 * SECURITY-CRITICAL:
+                 *
+                 * START_SERVICE creates the Work Profile service binding only
+                 * after the five-minute authentication lease has been granted.
+                 * Schedule removal of this binding at the exact lease expiry.
+                 *
+                 * The expiry timestamp is captured for this session. Before
+                 * unbinding, verify that the same lease is still current. This
+                 * prevents an old delayed callback from unbinding a newer
+                 * authenticated session.
+                 *
+                 * This unbinds the Work Profile ShelterApplication's binding;
+                 * it does not stop KillerService or any unrelated listener.
+                 */
+                if (sessionExpiresAt > 0L) {
+                    long delay = Math.max(
+                            0L,
+                            sessionExpiresAt - SystemClock.elapsedRealtime());
+
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (WorkProfileAuthenticationState.getExpiresAtElapsedRealtime()
+                                        == sessionExpiresAt
+                                && !WorkProfileAuthenticationState.isValid()) {
+                            application.unbindShelterService();
+                        }
+                    }, delay);
+                }
+
                 finish();
             }
 
