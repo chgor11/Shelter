@@ -9,10 +9,15 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.widget.Toast;
+
+import java.util.Locale;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResult;
@@ -39,6 +44,7 @@ import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.UriForwardProxy;
 import net.typeblog.shelter.util.Utility;
+import net.typeblog.shelter.util.WorkProfileAuthenticationState;
 
 public class MainActivity extends SecureActivity {
     public static final String BROADCAST_CONTEXT_MENU_CLOSED = "net.typeblog.shelter.broadcast.CONTEXT_MENU_CLOSED";
@@ -67,7 +73,14 @@ public class MainActivity extends SecureActivity {
     private boolean mRestarting = false;
     private boolean mWorkAuthenticationInProgress = false;
     private boolean mWorkAuthenticationSucceeded = false;
+    private long mWorkAuthenticationExpiresAt = 0L;
     private boolean mStartupInProgress = false;
+
+    // UI-only countdown. The Work Profile's WorkProfileAuthenticationState is
+    // the authoritative security decision and uses elapsedRealtime().
+    private final Handler mAuthenticationTimerHandler =
+            new Handler(Looper.getMainLooper());
+    private final Runnable mAuthenticationTimer = this::updateAuthenticationTimer;
 
     private IShelterService mServiceMain = null;
     private IShelterService mServiceWork = null;
@@ -87,8 +100,18 @@ public class MainActivity extends SecureActivity {
                     savedInstanceState.getBoolean("work_auth_in_progress", false);
             mWorkAuthenticationSucceeded =
                     savedInstanceState.getBoolean("work_auth_succeeded", false);
+            mWorkAuthenticationExpiresAt =
+                    savedInstanceState.getLong("work_auth_expires_at", 0L);
             mStartupInProgress =
                     savedInstanceState.getBoolean("startup_in_progress", false);
+
+            // Never trust a restored success flag without a still-valid
+            // in-memory expiry timestamp.
+            if (!mWorkAuthenticationSucceeded
+                    || mWorkAuthenticationExpiresAt <= SystemClock.elapsedRealtime()) {
+                mWorkAuthenticationSucceeded = false;
+                mWorkAuthenticationExpiresAt = 0L;
+            }
         }
 
         if (getSystemService(DevicePolicyManager.class).isProfileOwnerApp(getPackageName())) {
@@ -187,15 +210,76 @@ public class MainActivity extends SecureActivity {
     private void authenticateWorkProfileCb(ActivityResult result) {
         mWorkAuthenticationInProgress = false;
 
-        if (result.getResultCode() == RESULT_OK) {
-            mWorkAuthenticationSucceeded = true;
-            bindWorkService();
+        if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+            long expiresAt = result.getData().getLongExtra(
+                    WorkProfileAuthenticationState.EXTRA_AUTH_EXPIRES_AT, 0L);
+
+            if (expiresAt > SystemClock.elapsedRealtime()) {
+                mWorkAuthenticationSucceeded = true;
+                mWorkAuthenticationExpiresAt = expiresAt;
+                startAuthenticationTimer();
+                bindWorkService();
+            } else {
+                mWorkAuthenticationSucceeded = false;
+                mWorkAuthenticationExpiresAt = 0L;
+                updateAuthenticationTimer();
+                finish();
+            }
         } else {
             mWorkAuthenticationSucceeded = false;
+            mWorkAuthenticationExpiresAt = 0L;
+            updateAuthenticationTimer();
             Toast.makeText(this,
                     getString(R.string.work_mode_disabled), Toast.LENGTH_LONG).show();
             finish();
         }
+    }
+
+    /**
+     * Displays only the remaining authentication time in the main toolbar,
+     * in MM:SS form (for example, 03:21).
+     *
+     * This is informational only. It does not grant or extend authentication.
+     */
+    private void startAuthenticationTimer() {
+        mAuthenticationTimerHandler.removeCallbacks(mAuthenticationTimer);
+        updateAuthenticationTimer();
+    }
+
+    private void updateAuthenticationTimer() {
+        if (mWorkAuthenticationExpiresAt <= 0L) {
+            if (getSupportActionBar() != null) {
+                getSupportActionBar().setSubtitle(null);
+            }
+            return;
+        }
+
+        long remaining = mWorkAuthenticationExpiresAt - SystemClock.elapsedRealtime();
+
+        if (remaining <= 0L) {
+            mWorkAuthenticationSucceeded = false;
+            mWorkAuthenticationExpiresAt = 0L;
+            mAuthenticationTimerHandler.removeCallbacks(mAuthenticationTimer);
+
+            if (getSupportActionBar() != null) {
+                // Keep the display at zero so the user can see that the
+                // five-minute authentication window has ended.
+                getSupportActionBar().setSubtitle("00:00");
+            }
+            return;
+        }
+
+        long totalSeconds = (remaining + 999L) / 1000L;
+        long minutes = totalSeconds / 60L;
+        long seconds = totalSeconds % 60L;
+
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setSubtitle(
+                    String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds));
+        }
+
+        mAuthenticationTimerHandler.removeCallbacks(mAuthenticationTimer);
+        mAuthenticationTimerHandler.postDelayed(mAuthenticationTimer, 250L);
     }
 
     private void bindWorkService() {
@@ -328,6 +412,7 @@ public class MainActivity extends SecureActivity {
     protected void onSaveInstanceState(@NonNull Bundle outState) {
         outState.putBoolean("work_auth_in_progress", mWorkAuthenticationInProgress);
         outState.putBoolean("work_auth_succeeded", mWorkAuthenticationSucceeded);
+        outState.putLong("work_auth_expires_at", mWorkAuthenticationExpiresAt);
         outState.putBoolean("startup_in_progress", mStartupInProgress);
         super.onSaveInstanceState(outState);
     }
@@ -335,6 +420,9 @@ public class MainActivity extends SecureActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        if (mWorkAuthenticationSucceeded) {
+            updateAuthenticationTimer();
+        }
         if (mServiceMain != null && mServiceWork != null && !servicesAlive()) {
             doOnDestroy();
             mRestarting = true;
@@ -346,6 +434,7 @@ public class MainActivity extends SecureActivity {
 
     @Override
     protected void onDestroy() {
+        mAuthenticationTimerHandler.removeCallbacks(mAuthenticationTimer);
         super.onDestroy();
         if (!mRestarting)
             doOnDestroy();
