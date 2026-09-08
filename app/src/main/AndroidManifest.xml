@@ -198,6 +198,23 @@
         <service android:name=".services.FreezeService"
             android:foregroundServiceType="systemExempted" />
 
+        <!--
+             Profile Owner security service.
+             DeviceAdminService is kept bound by Android while the hosting
+             managed profile is running and is automatically re-bound after
+             the owner process crashes. It registers ACTION_SCREEN_OFF at
+             runtime and performs the parent-lock -> Work Profile key-eviction
+             sequence.
+        -->
+        <service
+            android:name=".services.WorkProfileSecurityService"
+            android:permission="android.permission.BIND_DEVICE_ADMIN"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_SERVICE" />
+            </intent-filter>
+        </service>
+
         <!-- Payment stub service -->
         <service android:name=".services.PaymentStubService"
             android:exported="true"
