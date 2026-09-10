@@ -3,7 +3,10 @@ package net.typeblog.shelter.services;
 import android.accessibilityservice.AccessibilityService;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
 import android.util.Log;
+
+import java.util.List;
 
 import net.typeblog.shelter.security.SystemPageFingerprints;
 import net.typeblog.shelter.security.SystemPageSecurityGuard;
@@ -63,7 +66,14 @@ public class ShelterAccessibilityService extends AccessibilityService {
         CharSequence packageName = event.getPackageName();
         CharSequence className = event.getClassName();
 
-        AccessibilityNodeInfo root = getRootInActiveWindow();
+        /*
+         * Never blindly pair an event with getRootInActiveWindow(). During a
+         * transition, the active window can already be different from the
+         * window that generated this event. We therefore resolve the root from
+         * the event's own windowId. If that exact window is unavailable, we
+         * fail closed instead of inspecting an unrelated window.
+         */
+        AccessibilityNodeInfo root = obtainRootForEvent(event);
         if (root == null) {
             return;
         }
@@ -84,6 +94,44 @@ public class ShelterAccessibilityService extends AccessibilityService {
         } finally {
             root.recycle();
         }
+    }
+
+    /**
+     * Returns the Accessibility root belonging to the exact window that
+     * generated {@code event}.
+     *
+     * <p>A negative window id means that the event does not identify a concrete
+     * window. For this security detector we deliberately do not fall back to
+     * {@link #getRootInActiveWindow()}, because doing so could combine the
+     * identity of one event with the UI tree of another window.</p>
+     */
+    private AccessibilityNodeInfo obtainRootForEvent(AccessibilityEvent event) {
+        final int eventWindowId = event.getWindowId();
+
+        if (eventWindowId < 0) {
+            return null;
+        }
+
+        final List<AccessibilityWindowInfo> windows = getWindows();
+        if (windows == null || windows.isEmpty()) {
+            return null;
+        }
+
+        for (AccessibilityWindowInfo window : windows) {
+            if (window == null) {
+                continue;
+            }
+
+            try {
+                if (window.getId() == eventWindowId) {
+                    return window.getRoot();
+                }
+            } finally {
+                window.recycle();
+            }
+        }
+
+        return null;
     }
 
     @Override
