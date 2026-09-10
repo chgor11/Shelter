@@ -82,7 +82,7 @@ public class ShelterAccessibilityService extends AccessibilityService {
          */
         AccessibilityNodeInfo root = obtainRootForEvent(event);
         if (root == null) {
-            Log.d(TAG, "No root for eventWindowId=" + event.getWindowId()
+            , "No root for eventWindowId=" + event.getWindowId()
                     + "; package=" + packageName + "; class=" + className);
             return;
         }
@@ -156,6 +156,10 @@ public class ShelterAccessibilityService extends AccessibilityService {
                 AccessibilityNodeInfo root = null;
                 try {
                     root = window.getRoot();
+            
+                    Rect windowBounds = new Rect();
+                    window.getBoundsInScreen(windowBounds);
+            
                     Log.i(TAG, "WINDOW id=" + window.getId()
                             + ", type=" + window.getType()
                             + ", layer=" + window.getLayer()
@@ -167,45 +171,33 @@ public class ShelterAccessibilityService extends AccessibilityService {
                             + ", rootClass=" + String.valueOf(
                                     root == null ? null : root.getClassName())
                             + ", title=" + String.valueOf(window.getTitle())
-                            Rect windowBounds = new Rect();
-                            window.getBoundsInScreen(windowBounds);
-                            
-                            Log.d(TAG,
-                                    "WINDOW id=" + window.getId()
-                                            + ", type=" + window.getType()
-                                            + ", layer=" + window.getLayer()
-                                            + ", active=" + window.isActive()
-                                            + ", focused=" + window.isFocused()
-                                            + ", accessibilityFocused=" + window.isAccessibilityFocused()
-                                            + ", package=" + rootPackage
-                                            + ", rootClass=" + rootClass
-                                            + ", title=" + window.getTitle()
-                                            + ", bounds=" + windowBounds);
-
-                    if (root == null) {
-                        Log.w(TAG, "WINDOW id=" + window.getId() + " root=null");
-                        continue;
+                            + ", bounds=" + windowBounds);
+            
+                    if (root != null) {
+                        Set<String> ids =
+                                SystemPageFingerprints.collectResourceIds(root);
+            
+                        List<String> sortedIds = new ArrayList<>(ids);
+                        Collections.sort(sortedIds);
+            
+                        Log.i(TAG, "WINDOW id=" + window.getId()
+                                + " RESOURCE_IDS count=" + sortedIds.size());
+            
+                        for (String id : sortedIds) {
+                            Log.i(TAG, "  RESOURCE_ID " + id);
+                        }
+            
+                        logFingerprintDiagnostics(
+                                window,
+                                root,
+                                ids
+                        );
                     }
-
-                    Set<String> ids = SystemPageFingerprints.collectResourceIds(root);
-                    List<String> sortedIds = new ArrayList<>(ids);
-                    Collections.sort(sortedIds);
-
-                    Log.i(TAG, "WINDOW id=" + window.getId()
-                            + " RESOURCE_IDS count=" + sortedIds.size());
-                    for (String id : sortedIds) {
-                        Log.i(TAG, "  RESOURCE_ID " + id);
-                    }
-
-                    logFingerprintDiagnostics(window, root, ids);
                 } finally {
                     if (root != null) {
                         root.recycle();
                     }
                 }
-            } catch (RuntimeException e) {
-                Log.e(TAG, "WINDOW id=" + window.getId()
-                        + " diagnostic failure", e);
             } finally {
                 window.recycle();
             }
