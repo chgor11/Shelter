@@ -1,0 +1,561 @@
+package net.typeblog.shelter.security;
+
+import android.view.accessibility.AccessibilityNodeInfo;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+/**
+ * Strict, language-independent fingerprints for the six target system pages.
+ *
+ * Design:
+ *  - Every REQUIRED resource-id must be present.
+ *  - Every FORBIDDEN resource-id must be absent.
+ *  - Package/class are checked as hard conditions.
+ *  - The Shelter App Info fingerprint additionally requires the visible
+ *    application identity to contain "Shelter" (case-insensitive).
+ *
+ * The resource-id sets are derived from the supplied UIAutomator captures.
+ * Do not weaken REQUIRED/ FORBIDDEN to OR/scoring without re-validating the
+ * fingerprints against fresh captures.
+ */
+public final class SystemPageFingerprints {
+
+    public enum Page {
+        NONE,
+        DEVELOPER_OPTIONS,
+        SECURITY_PRIVACY,
+        DEVICE_ADMIN_APPS,
+        ACCESSIBILITY_INSTALLED_APPS,
+        HIDDEN_APPS,
+        SHELTER_APP_INFO
+    }
+
+    private static final String SETTINGS = "com.android.settings";
+    private static final String SETTINGS_SUB_SETTINGS = "com.android.settings.SubSettings";
+
+    private static final String LAUNCHER = "com.sec.android.app.launcher";
+    private static final String APP_PICKER =
+            "com.sec.android.app.launcher.apppicker.AppPickerActivity";
+
+    private static final String SHELTER_NAME = "shelter";
+
+    private static Set<String> set(String... values) {
+        return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values)));
+    }
+
+    /* ----------------------------- Developer options ----------------------------- */
+
+    private static final Set<String> DEV_REQUIRED = set(
+            "com.android.settings:id/action_bar_root",
+            "android:id/content",
+            "com.android.settings:id/included_window_inset",
+            "com.android.settings:id/content_parent",
+            "com.android.settings:id/coordinator",
+            "com.android.settings:id/app_bar",
+            "com.android.settings:id/collapsing_app_bar",
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/content_layout",
+            "com.android.settings:id/content_frame",
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_text",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/main_content",
+            "com.android.settings:id/container_material",
+            "android:id/list_container",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/title_frame",
+            "android:id/title",
+            "android:id/summary",
+            "com.android.settings:id/widget_frame",
+            "com.android.settings:id/switch_widget",
+            "com.android.settings:id/round_corner",
+            "android:id/navigationBarBackground"
+    );
+
+    /* ----------------------------- Security & privacy ----------------------------- */
+
+    private static final Set<String> SECURITY_REQUIRED = set(
+            "com.android.settings:id/action_bar_root",
+            "android:id/content",
+            "com.android.settings:id/included_window_inset",
+            "com.android.settings:id/content_parent",
+            "com.android.settings:id/coordinator",
+            "com.android.settings:id/app_bar",
+            "com.android.settings:id/collapsing_app_bar",
+            "com.android.settings:id/collapsing_appbar_title_layout_parent",
+            "com.android.settings:id/collapsing_appbar_title_layout",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/content_layout",
+            "com.android.settings:id/content_frame",
+            "com.android.settings:id/main_content",
+            "com.android.settings:id/container_material",
+            "android:id/list_container",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/status_icon_bg_new",
+            "com.android.settings:id/tv_status_suggestion",
+            "com.android.settings:id/tv_status_suggestion_desc",
+            "com.android.settings:id/icon_frame",
+            "android:id/icon",
+            "com.android.settings:id/title_frame",
+            "android:id/title",
+            "android:id/summary",
+            "com.android.settings:id/icon_status_frame",
+            "com.android.settings:id/icon_status",
+            "com.android.settings:id/divider",
+            "com.android.settings:id/round_corner",
+            "android:id/navigationBarBackground"
+    );
+
+    /* ----------------------------- Device admin apps ----------------------------- */
+
+    private static final Set<String> DEVICE_ADMIN_REQUIRED = set(
+            "com.android.settings:id/action_bar_root",
+            "android:id/content",
+            "com.android.settings:id/included_window_inset",
+            "com.android.settings:id/content_parent",
+            "com.android.settings:id/coordinator",
+            "com.android.settings:id/app_bar",
+            "com.android.settings:id/collapsing_app_bar",
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/content_layout",
+            "com.android.settings:id/content_frame",
+            "com.android.settings:id/main_content",
+            "com.android.settings:id/container_material",
+            "android:id/list_container",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/title",
+            "com.android.settings:id/icon_frame",
+            "android:id/icon",
+            "com.android.settings:id/title_frame",
+            "android:id/widget_frame",
+            "android:id/switch_widget",
+            "com.android.settings:id/round_corner",
+            "android:id/navigationBarBackground"
+    );
+
+    /* -------------------------- Accessibility installed apps -------------------------- */
+
+    private static final Set<String> ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/action_bar_root",
+            "android:id/content",
+            "com.android.settings:id/included_window_inset",
+            "com.android.settings:id/content_parent",
+            "com.android.settings:id/coordinator",
+            "com.android.settings:id/app_bar",
+            "com.android.settings:id/collapsing_app_bar",
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/content_layout",
+            "com.android.settings:id/content_frame",
+            "com.android.settings:id/main_content",
+            "com.android.settings:id/container_material",
+            "android:id/list_container",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/title_frame",
+            "android:id/title",
+            "android:id/summary",
+            "com.android.settings:id/round_corner",
+            "android:id/navigationBarBackground"
+    );
+
+    /* ----------------------------- Samsung Hidden Apps ----------------------------- */
+
+    private static final Set<String> HIDDEN_APPS_REQUIRED = set(
+            "com.sec.android.app.launcher:id/action_bar_root",
+            "android:id/content",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/apps_picker_action_bar",
+            "com.sec.android.app.launcher:id/apps_picker_back_button",
+            "com.sec.android.app.launcher:id/select_count_text",
+            "com.sec.android.app.launcher:id/searchview",
+            "com.sec.android.app.launcher:id/search_bar",
+            "com.sec.android.app.launcher:id/search_button",
+            "com.sec.android.app.launcher:id/apps_picker_widget_container_view",
+            "com.sec.android.app.launcher:id/apppickerview",
+            "com.sec.android.app.launcher:id/root_app_picker_container",
+            "com.sec.android.app.launcher:id/selected_view_title",
+            "com.sec.android.app.launcher:id/selected_app_picker_view",
+            "com.sec.android.app.launcher:id/item",
+            "com.sec.android.app.launcher:id/remove_icon",
+            "com.sec.android.app.launcher:id/icon",
+            "com.sec.android.app.launcher:id/sub_icon",
+            "com.sec.android.app.launcher:id/title",
+            "com.sec.android.app.launcher:id/main_view_title",
+            "com.sec.android.app.launcher:id/app_picker_state_view_container",
+            "com.sec.android.app.launcher:id/left_frame",
+            "com.sec.android.app.launcher:id/icon_frame",
+            "com.sec.android.app.launcher:id/title_frame",
+            "com.sec.android.app.launcher:id/extra_label",
+            "com.sec.android.app.launcher:id/doneButton"
+    );
+
+    /* ----------------------------- Shelter App Info ----------------------------- */
+
+    private static final Set<String> SHELTER_APP_INFO_REQUIRED = set(
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/button_bar",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_icon",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/sesl_action_bar_overflow_button"
+    );
+
+    /**
+     * These are the target-page IDs that must NOT be present in a competing
+     * fingerprint. They are deliberately kept explicit rather than inferred
+     * at runtime, so the detector remains deterministic.
+     */
+    private static final Set<String> DEV_FORBIDDEN = set(
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/status_icon_bg_new",
+            "com.android.settings:id/tv_status_suggestion",
+            "com.android.settings:id/tv_status_suggestion_desc",
+            "com.android.settings:id/icon_status_frame",
+            "com.android.settings:id/icon_status",
+            "com.android.settings:id/divider",
+            "com.android.settings:id/collapsing_appbar_title_layout_parent",
+            "com.android.settings:id/collapsing_appbar_title_layout",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_icon",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/button_bar",
+            "com.android.settings:id/sesl_action_bar_overflow_button",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private static final Set<String> SECURITY_FORBIDDEN = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_text",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/widget_frame",
+            "com.android.settings:id/switch_widget",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_icon",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/button_bar",
+            "com.android.settings:id/sesl_action_bar_overflow_button",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private static final Set<String> DEVICE_ADMIN_FORBIDDEN = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_text",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/status_icon_bg_new",
+            "com.android.settings:id/tv_status_suggestion",
+            "com.android.settings:id/tv_status_suggestion_desc",
+            "com.android.settings:id/icon_status_frame",
+            "com.android.settings:id/icon_status",
+            "com.android.settings:id/divider",
+            "com.android.settings:id/collapsing_appbar_title_layout_parent",
+            "com.android.settings:id/collapsing_appbar_title_layout",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_icon",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/button_bar",
+            "com.android.settings:id/sesl_action_bar_overflow_button",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private static final Set<String> ACCESSIBILITY_FORBIDDEN = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_text",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/widget_frame",
+            "com.android.settings:id/switch_widget",
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/status_icon_bg_new",
+            "com.android.settings:id/tv_status_suggestion",
+            "com.android.settings:id/tv_status_suggestion_desc",
+            "com.android.settings:id/icon_status_frame",
+            "com.android.settings:id/icon_status",
+            "com.android.settings:id/divider",
+            "com.android.settings:id/collapsing_appbar_title_layout_parent",
+            "com.android.settings:id/collapsing_appbar_title_layout",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_icon",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/button_bar",
+            "com.android.settings:id/sesl_action_bar_overflow_button",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private static final Set<String> HIDDEN_APPS_FORBIDDEN = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/recycler_view"
+    );
+
+    private static final Set<String> SHELTER_APP_INFO_FORBIDDEN = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_text",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/status_icon_bg_new",
+            "com.android.settings:id/tv_status_suggestion",
+            "com.android.settings:id/tv_status_suggestion_desc",
+            "com.android.settings:id/icon_status_frame",
+            "com.android.settings:id/icon_status",
+            "com.android.settings:id/divider",
+            "android:id/switch_widget",
+            "com.android.settings:id/widget_frame",
+            "com.android.settings:id/recycler_view",
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private SystemPageFingerprints() {
+        throw new AssertionError("No instances");
+    }
+
+    /**
+     * Detects a page from an Accessibility root node and the AccessibilityEvent
+     * identity. All required conditions are ANDed; all forbidden conditions
+     * are also mandatory NOT conditions.
+     */
+    public static Page detect(
+            AccessibilityNodeInfo root,
+            CharSequence eventPackageName,
+            CharSequence eventClassName,
+            CharSequence visibleText) {
+
+        if (root == null) {
+            return Page.NONE;
+        }
+
+        // The AccessibilityService already filters packages in its XML
+        // configuration. Keep these checks here as a fail-closed boundary
+        // because this detector is also a standalone security component.
+        String pkg = eventPackageName == null ? "" : eventPackageName.toString();
+        String cls = eventClassName == null ? "" : eventClassName.toString();
+
+        final boolean settingsWindow =
+                SETTINGS.equals(pkg) && SETTINGS_SUB_SETTINGS.equals(cls);
+        final boolean launcherWindow =
+                LAUNCHER.equals(pkg) && APP_PICKER.equals(cls);
+
+        if (!settingsWindow && !launcherWindow) {
+            return Page.NONE;
+        }
+
+        // Exactly one tree traversal per detection. The tree is not traversed
+        // again for individual fingerprints.
+        Set<String> ids = collectResourceIds(root);
+
+        if (launcherWindow) {
+            // Launcher/AppPickerActivity can only be the Hidden Apps target in
+            // the current fingerprint set.
+            if (containsAll(ids, HIDDEN_APPS_REQUIRED)
+                    && containsNone(ids, HIDDEN_APPS_FORBIDDEN)) {
+                return Page.HIDDEN_APPS;
+            }
+            return Page.NONE;
+        }
+
+        // Settings/SubSettings: run the cheapest distinctive candidates first.
+        // Each candidate is still a strict AND + NOT match; this is only an
+        // ordering optimization and does not change fingerprint semantics.
+        if (ids.contains("com.android.settings:id/security_dashboard_alert_center")
+                && containsAll(ids, SECURITY_REQUIRED)
+                && containsNone(ids, SECURITY_FORBIDDEN)) {
+            return Page.SECURITY_PRIVACY;
+        }
+
+        if (ids.contains("com.android.settings:id/switch_bar")
+                && containsAll(ids, DEV_REQUIRED)
+                && containsNone(ids, DEV_FORBIDDEN)) {
+            return Page.DEVELOPER_OPTIONS;
+        }
+
+        if (ids.contains("com.android.settings:id/entity_header")
+                && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
+                && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
+                && containsShelterIdentity(root, visibleText)) {
+            return Page.SHELTER_APP_INFO;
+        }
+
+        if (containsAll(ids, DEVICE_ADMIN_REQUIRED)
+                && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
+            return Page.DEVICE_ADMIN_APPS;
+        }
+
+        if (containsAll(ids, ACCESSIBILITY_REQUIRED)
+                && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
+            return Page.ACCESSIBILITY_INSTALLED_APPS;
+        }
+
+        return Page.NONE;
+    }
+
+    private static boolean containsAll(Set<String> actual, Set<String> required) {
+        return actual.containsAll(required);
+    }
+
+    private static boolean containsNone(Set<String> actual, Set<String> forbidden) {
+        for (String id : forbidden) {
+            if (actual.contains(id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Recursively collects every non-empty Accessibility resource-id. */
+    public static Set<String> collectResourceIds(AccessibilityNodeInfo root) {
+        Set<String> result = new HashSet<>();
+        collectResourceIdsRecursive(root, result);
+        return result;
+    }
+
+    private static void collectResourceIdsRecursive(
+            AccessibilityNodeInfo node,
+            Set<String> out) {
+        if (node == null) {
+            return;
+        }
+
+        CharSequence id = node.getViewIdResourceName();
+        if (id != null && id.length() != 0) {
+            out.add(id.toString());
+        }
+
+        final int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                collectResourceIdsRecursive(child, out);
+            } finally {
+                child.recycle();
+            }
+        }
+    }
+
+    /**
+     * Shelter identity is intentionally text-based only as a secondary identity
+     * check for App Info. It is NOT used for the other five pages, and no other
+     * localized page title is used anywhere in this detector.
+     */
+    private static boolean containsShelterIdentity(
+            AccessibilityNodeInfo root,
+            CharSequence visibleEventText) {
+
+        if (containsIgnoreCase(visibleEventText, SHELTER_NAME)) {
+            return true;
+        }
+
+        return containsShelterIdentityRecursive(root);
+    }
+
+    private static boolean containsShelterIdentityRecursive(AccessibilityNodeInfo node) {
+        if (node == null) {
+            return false;
+        }
+
+        if (containsIgnoreCase(node.getText(), SHELTER_NAME)
+                || containsIgnoreCase(node.getContentDescription(), SHELTER_NAME)) {
+            return true;
+        }
+
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child != null) {
+                try {
+                    if (containsShelterIdentityRecursive(child)) {
+                        return true;
+                    }
+                } finally {
+                    child.recycle();
+                }
+            }
+        }
+        return false;
+    }
+
+    private static boolean containsIgnoreCase(CharSequence value, String needle) {
+        return value != null && value.toString().toLowerCase().contains(needle);
+    }
+
+    public static Set<String> requiredFor(Page page) {
+        switch (page) {
+            case DEVELOPER_OPTIONS:
+                return DEV_REQUIRED;
+            case SECURITY_PRIVACY:
+                return SECURITY_REQUIRED;
+            case DEVICE_ADMIN_APPS:
+                return DEVICE_ADMIN_REQUIRED;
+            case ACCESSIBILITY_INSTALLED_APPS:
+                return ACCESSIBILITY_REQUIRED;
+            case HIDDEN_APPS:
+                return HIDDEN_APPS_REQUIRED;
+            case SHELTER_APP_INFO:
+                return SHELTER_APP_INFO_REQUIRED;
+            default:
+                return Collections.emptySet();
+        }
+    }
+
+    public static Set<String> forbiddenFor(Page page) {
+        switch (page) {
+            case DEVELOPER_OPTIONS:
+                return DEV_FORBIDDEN;
+            case SECURITY_PRIVACY:
+                return SECURITY_FORBIDDEN;
+            case DEVICE_ADMIN_APPS:
+                return DEVICE_ADMIN_FORBIDDEN;
+            case ACCESSIBILITY_INSTALLED_APPS:
+                return ACCESSIBILITY_FORBIDDEN;
+            case HIDDEN_APPS:
+                return HIDDEN_APPS_FORBIDDEN;
+            case SHELTER_APP_INFO:
+                return SHELTER_APP_INFO_FORBIDDEN;
+            default:
+                return Collections.emptySet();
+        }
+    }
+}
