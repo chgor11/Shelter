@@ -82,7 +82,7 @@ public class ShelterAccessibilityService extends AccessibilityService {
          */
         AccessibilityNodeInfo root = obtainRootForEvent(event);
         if (root == null) {
-            , "No root for eventWindowId=" + event.getWindowId()
+            Log.w(TAG, "No root for eventWindowId=" + event.getWindowId()
                     + "; package=" + packageName + "; class=" + className);
             return;
         }
