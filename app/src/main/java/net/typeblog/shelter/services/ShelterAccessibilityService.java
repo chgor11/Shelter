@@ -5,6 +5,7 @@ import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
 import android.util.Log;
+import android.graphics.Rect;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -166,7 +167,20 @@ public class ShelterAccessibilityService extends AccessibilityService {
                             + ", rootClass=" + String.valueOf(
                                     root == null ? null : root.getClassName())
                             + ", title=" + String.valueOf(window.getTitle())
-                            + ", bounds=" + window.getBoundsInScreen());
+                            Rect windowBounds = new Rect();
+                            window.getBoundsInScreen(windowBounds);
+                            
+                            Log.d(TAG,
+                                    "WINDOW id=" + window.getId()
+                                            + ", type=" + window.getType()
+                                            + ", layer=" + window.getLayer()
+                                            + ", active=" + window.isActive()
+                                            + ", focused=" + window.isFocused()
+                                            + ", accessibilityFocused=" + window.isAccessibilityFocused()
+                                            + ", package=" + rootPackage
+                                            + ", rootClass=" + rootClass
+                                            + ", title=" + window.getTitle()
+                                            + ", bounds=" + windowBounds);
 
                     if (root == null) {
                         Log.w(TAG, "WINDOW id=" + window.getId() + " root=null");
