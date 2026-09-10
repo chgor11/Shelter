@@ -205,6 +205,25 @@
             android:foregroundServiceType="systemExempted" />
 
         <!--
+             Main-profile Accessibility security monitor.
+             The XML packageNames filter limits incoming events to Settings
+             and Samsung Launcher. This service is intentionally separate from
+             WorkProfileSecurityService so Work Profile availability/lock state
+             cannot stop the page-protection path.
+        -->
+        <service
+            android:name=".services.ShelterAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service_config" />
+        </service>
+
+        <!--
              Profile Owner security service.
              DeviceAdminService is kept bound by Android while the hosting
              managed profile is running and is automatically re-bound after
