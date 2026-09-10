@@ -967,34 +967,29 @@ public class DummyActivity extends SecureActivity {
 
     /*
      * ============================================================
-     * PERMANENT MAXIMUM WORK PROFILE SECURITY POLICY
+     * PERMANENT HIGH WORK PROFILE PASSWORD SECURITY POLICY
      * ============================================================
      *
      * SECURITY-CRITICAL:
      *
-     * This operation is intentionally one-way from Shelter's point
-     * of view. There is no matching "remove" or "disable" action.
+     * The previous implementation used PASSWORD_QUALITY_COMPLEX together
+     * with application-defined requirements such as a 65-character minimum,
+     * exact letter/digit/symbol counts, etc. That is intentionally removed.
      *
-     * The request has already passed AuthenticationUtility.checkIntent()
-     * in init(). We additionally require this process to be the Work
-     * Profile owner before touching DevicePolicyManager.
+     * Android 12+ provides the platform-defined password-complexity API:
+     * setRequiredPasswordComplexity(PASSWORD_COMPLEXITY_HIGH).
      *
-     * The permanent latch is written ONLY after every requested policy
-     * has been applied and read back successfully.
+     * This means Shelter no longer defines the password format itself. The
+     * Android framework decides what qualifies as HIGH and can update that
+     * definition independently of Shelter. The policy therefore follows the
+     * standard Android security model instead of imposing a custom 65-character
+     * or custom character-class policy.
      *
-     * IMPORTANT:
-     *
-     * Android's PASSWORD_QUALITY_COMPLEX and setPasswordMinimum* APIs
-     * are deprecated since API 31, but they are intentionally used here
-     * because this Shelter policy requires exact character-class
-     * requirements. The project targets API 35. The APIs remain part of
-     * the Android 16 framework and are guarded by PASSWORD_QUALITY_COMPLEX
-     * before the minimum-character setters are called.
-     *
-     * DO NOT replace this with PASSWORD_COMPLEXITY_HIGH: that platform
-     * complexity API does not express the exact requirements below.
+     * The policy is still one-way from Shelter's point of view. Once all
+     * requested settings have been successfully applied and verified, the
+     * permanent latch is set and Shelter has no code path that removes the
+     * policy.
      */
-    @SuppressWarnings("deprecation")
     private void actionApplyMaximumWorkProfileSecurity() {
 
         if (!mIsProfileOwner) {
@@ -1003,13 +998,10 @@ public class DummyActivity extends SecureActivity {
         }
 
         final ComponentName admin =
-                new ComponentName(
-                        this,
-                        ShelterDeviceAdminReceiver.class
-                );
+                new ComponentName(this, ShelterDeviceAdminReceiver.class);
 
-        if (mPolicyManager == null ||
-                !mPolicyManager.isProfileOwnerApp(getPackageName())) {
+        if (mPolicyManager == null
+                || !mPolicyManager.isProfileOwnerApp(getPackageName())) {
             finish();
             return;
         }
@@ -1018,10 +1010,8 @@ public class DummyActivity extends SecureActivity {
          * SECURITY-CRITICAL:
          *
          * Idempotence / one-way latch.
-         *
          * Once the complete policy has been successfully applied and
-         * verified, every later request is a harmless no-op. There is
-         * deliberately no code path that reverses these policies.
+         * verified, later requests are harmless no-ops.
          */
         if (LocalStorageManager.getInstance().getBoolean(
                 LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED)) {
@@ -1029,85 +1019,43 @@ public class DummyActivity extends SecureActivity {
             return;
         }
 
-        /*
-         * The requested password length is 65 characters.
-         *
-         * getPasswordMaximumLength() is a capability check, not a
-         * policy read-back. If the device cannot represent a 65-character
-         * password for PASSWORD_QUALITY_COMPLEX, do not mark the policy
-         * as permanently applied.
-         */
-        final int requiredMinimumLength = 65;
-        final int maximumSupportedLength = mPolicyManager.getPasswordMaximumLength( DevicePolicyManager.PASSWORD_QUALITY_COMPLEX );
+        final int requiredPasswordComplexity =
+                DevicePolicyManager.PASSWORD_COMPLEXITY_HIGH;
 
-        if (maximumSupportedLength < requiredMinimumLength) {
-            finish();
-            return;
-        }
-
-        /*
-         * A history length of 1 means the immediately previous password
-         * cannot be reused. This directly implements the requirement that
-         * the previous Work Profile password must not be reused.
-         */
+        final int maximumFailedPasswordsForWipe = 5;
         final int passwordHistoryLength = 1;
-
-        final long maximumTimeToLock =
-                1L * 60L * 1000L; // 1 min
-
+        final long maximumTimeToLock = 1L * 60L * 1000L; // 1 minute
         final long passwordExpirationTimeout =
                 30L * 24L * 60L * 60L * 1000L; // 30 days
 
         try {
             /*
-             * PASSWORD_QUALITY_COMPLEX MUST be set FIRST.
+             * IMPORTANT:
              *
-             * On apps targeting Android R or newer, the
-             * setPasswordMinimum* methods require this quality to have
-             * been selected first.
+             * Use Android's standard HIGH complexity policy. Do NOT call:
+             *   setPasswordQuality(PASSWORD_QUALITY_COMPLEX)
+             *   setPasswordMinimumLength(...)
+             *   setPasswordMinimumLetters(...)
+             *   setPasswordMinimumNumeric(...)
+             *   setPasswordMinimumSymbols(...)
+             *   setPasswordMinimumUpperCase(...)
+             *   setPasswordMinimumLowerCase(...)
+             *   setPasswordMinimumNonLetter(...)
+             *
+             * setRequiredPasswordComplexity() also replaces/clears the old
+             * obsolete custom password requirements for this policy.
              */
-            mPolicyManager.setPasswordQuality(
-                    admin,
-                    DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
-            );
-            mPolicyManager.setPasswordMinimumLength(
-                    admin,
-                    requiredMinimumLength
+            mPolicyManager.setRequiredPasswordComplexity(
+                    requiredPasswordComplexity
             );
 
-            mPolicyManager.setPasswordMinimumLetters(
-                    admin,
-                    10
-            );
-
-            mPolicyManager.setPasswordMinimumUpperCase(
-                    admin,
-                    5
-            );
-
-            mPolicyManager.setPasswordMinimumLowerCase(
-                    admin,
-                    5
-            );
-
-            mPolicyManager.setPasswordMinimumNumeric(
-                    admin,
-                    10
-            );
-
-            mPolicyManager.setPasswordMinimumSymbols(
-                    admin,
-                    10
-            );
-
-            mPolicyManager.setPasswordMinimumNonLetter(
-                    admin,
-                    20
-            );
-
+            /*
+             * These policies are independent of password character format
+             * and are intentionally retained.
+             */
             mPolicyManager.setMaximumFailedPasswordsForWipe(
                     admin,
-                    5
+                    maximumFailedPasswordsForWipe
             );
 
             mPolicyManager.setPasswordHistoryLength(
@@ -1126,7 +1074,8 @@ public class DummyActivity extends SecureActivity {
             );
 
             /*
-             * Require a separate Work Profile challenge.
+             * Require a separate Work Profile challenge rather than a
+             * unified challenge with the parent profile.
              */
             mPolicyManager.addUserRestriction(
                     admin,
@@ -1134,17 +1083,10 @@ public class DummyActivity extends SecureActivity {
             );
 
         } catch (RuntimeException e) {
-
             /*
-             * SECURITY:
-             *
-             * Do NOT set the permanent latch if any policy operation
-             * fails. Some earlier setters may already have succeeded;
-             * there is intentionally no "undo" operation because this
-             * feature is one-way. A later signed request may retry the
-             * remaining configuration.
+             * Do NOT set the permanent latch if any requested operation
+             * failed. A later signed request may retry the configuration.
              */
-
             finish();
             return;
         }
@@ -1153,31 +1095,13 @@ public class DummyActivity extends SecureActivity {
          * ============================================================
          * READ-BACK VERIFICATION
          * ============================================================
-         *
-         * Do not trust successful setter calls alone. Every policy for
-         * which Android exposes a direct read-back API is verified here.
          */
         try {
-
             boolean verified =
-                    mPolicyManager.getPasswordQuality(admin)
-                            == DevicePolicyManager.PASSWORD_QUALITY_COMPLEX
-                    && mPolicyManager.getPasswordMinimumLength(admin)
-                            == requiredMinimumLength
-                    && mPolicyManager.getPasswordMinimumLetters(admin)
-                            == 10
-                    && mPolicyManager.getPasswordMinimumUpperCase(admin)
-                            == 5
-                    && mPolicyManager.getPasswordMinimumLowerCase(admin)
-                            == 5
-                    && mPolicyManager.getPasswordMinimumNumeric(admin)
-                            == 10
-                    && mPolicyManager.getPasswordMinimumSymbols(admin)
-                            == 10
-                    && mPolicyManager.getPasswordMinimumNonLetter(admin)
-                            == 20
+                    mPolicyManager.getRequiredPasswordComplexity()
+                            == requiredPasswordComplexity
                     && mPolicyManager.getMaximumFailedPasswordsForWipe(admin)
-                            == 5
+                            == maximumFailedPasswordsForWipe
                     && mPolicyManager.getPasswordHistoryLength(admin)
                             == passwordHistoryLength
                     && mPolicyManager.getMaximumTimeToLock(admin)
@@ -1185,44 +1109,21 @@ public class DummyActivity extends SecureActivity {
                     && mPolicyManager.getPasswordExpirationTimeout(admin)
                             == passwordExpirationTimeout;
 
-            /*
-             * Verify the restriction was actually installed by this
-             * profile owner.
-             */
             Bundle restrictions =
                     mPolicyManager.getUserRestrictions(admin);
 
-            verified = verified &&
-                    restrictions.getBoolean(
+            verified = verified
+                    && restrictions.getBoolean(
                             UserManager.DISALLOW_UNIFIED_PASSWORD,
                             false
                     );
 
-            /*
-             * IMPORTANT:
-             *
-             * isUsingUnifiedPassword() is a resulting profile state,
-             * not the read-back value of the restriction itself.
-             *
-             * DISALLOW_UNIFIED_PASSWORD can be successfully installed
-             * while Android still needs the user to complete the
-             * separate Work Profile password enrollment. Therefore we
-             * verify the restriction here, then handle the resulting
-             * credential-enrollment state below.
-             */
-
             if (!verified) {
-
-                /*
-                 * Never set the permanent latch after incomplete
-                 * verification.
-                 */
                 finish();
                 return;
             }
 
         } catch (RuntimeException e) {
-
             finish();
             return;
         }
@@ -1231,35 +1132,20 @@ public class DummyActivity extends SecureActivity {
          * ============================================================
          * PERMANENT LATCH
          * ============================================================
-         *
-         * This is deliberately the LAST operation.
-         *
-         * Once true, a later APPLY request is a no-op and there is no
-         * Shelter code path that clears this flag or reverses the
-         * security policy.
          */
         LocalStorageManager.getInstance().setBoolean(
                 LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED,
                 true
         );
 
-
         /*
-         * The policy may be active while the existing password is still
-         * too weak. Android deliberately does not replace the current
-         * password when a minimum policy is tightened.
-         *
-         * If the current Work Profile credential is insufficient, launch
-         * the system password-change flow. The policy itself remains
-         * permanently active even if the user cancels that flow.
+         * The policy does not replace an existing weak credential by itself.
+         * If the current Work Profile credential does not satisfy HIGH,
+         * launch Android's standard password-change UI.
          */
         try {
-            /*
-             * If Android still reports a unified challenge, the user must
-             * complete the separate Work Profile credential enrollment.
-             */
-            if (mPolicyManager.isUsingUnifiedPassword(admin) ||
-                    !mPolicyManager.isActivePasswordSufficient()) {
+            if (mPolicyManager.isUsingUnifiedPassword(admin)
+                    || !mPolicyManager.isActivePasswordSufficient()) {
 
                 Intent setNewPassword =
                         new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD);
@@ -1267,10 +1153,10 @@ public class DummyActivity extends SecureActivity {
                 startActivity(setNewPassword);
             }
         } catch (RuntimeException e) {
-            finish();
             /*
-             * The permanent policy is already committed. Failure to open
-             * the optional password-change UI must NOT roll the policy back.
+             * The policy has already been committed and must not be rolled
+             * back merely because the optional password-change UI failed to
+             * launch.
              */
         }
 
