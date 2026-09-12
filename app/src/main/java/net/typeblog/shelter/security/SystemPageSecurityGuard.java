@@ -31,7 +31,7 @@ import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
  */
 public final class SystemPageSecurityGuard {
     private static final String TAG = "ShelterPageSecurity";
-    private static final long GRACE_PERIOD_MS = 3L * 60L * 1000L;
+    private static final long GRACE_PERIOD_MS = 1L * 20L * 1000L;
 
     private final Context mContext;
     private final DevicePolicyManager mDpm;
