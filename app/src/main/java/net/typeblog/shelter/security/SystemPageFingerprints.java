@@ -15,12 +15,13 @@ import java.util.Set;
  *  - Every FORBIDDEN resource-id must be absent.
  *  - Package/class are checked as hard conditions. Shelter App Info accepts
  *    the two Settings activity classes observed for that page on Android 16.
- *  - The Shelter App Info fingerprint additionally requires the visible
- *    application identity to contain "Shelter" (case-insensitive).
+ *  - No localized page title is used.
+ *  - The Shelter App Info fingerprint additionally requires the application
+ *    identity "Shelter"; this is not a localized page title.
+ *  - Matching is deterministic: there is no scoring or fuzzy matching.
  *
- * The resource-id sets are derived from the supplied UIAutomator captures.
- * Do not weaken REQUIRED/ FORBIDDEN to OR/scoring without re-validating the
- * fingerprints against fresh captures.
+ * The structural fingerprints below are based on the supplied Android 16 /
+ * Samsung accessibility captures.
  */
 public final class SystemPageFingerprints {
 
@@ -44,16 +45,6 @@ public final class SystemPageFingerprints {
             "com.sec.android.app.launcher.apppicker.AppPickerActivity";
 
     private static final String SHELTER_NAME = "shelter";
-
-    /*
-     * Samsung/Android 16 on the target device exposes no resource IDs at all
-     * through AccessibilityNodeInfo even with flagReportViewIds enabled. The
-     * supplied live logs show 5-15 IDs and, on other captures, zero IDs. In
-     * that environment a resource-id-only detector can never match the six
-     * UIAutomator fingerprints. These are exact window-state labels for the
-     * user's captured device language, used only as a last-resort fallback
-     * when the structural Accessibility fingerprint is unavailable.
-     */
 
 
     private static Set<String> set(String... values) {
@@ -211,16 +202,13 @@ public final class SystemPageFingerprints {
     /* ----------------------------- Shelter App Info ----------------------------- */
 
     private static final Set<String> SHELTER_APP_INFO_REQUIRED = set(
-            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
             "com.android.settings:id/button1",
             "com.android.settings:id/button3",
             "com.android.settings:id/button4",
-            "com.android.settings:id/button_bar",
-            "com.android.settings:id/entity_header",
-            "com.android.settings:id/entity_header_icon",
-            "com.android.settings:id/entity_header_summary",
-            "com.android.settings:id/entity_header_title",
-            "com.android.settings:id/sesl_action_bar_overflow_button"
+            "com.android.settings:id/recycler_view"
     );
 
     /*
@@ -261,8 +249,28 @@ public final class SystemPageFingerprints {
     );
 
     private static final Set<String> SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED = set(
-            "com.android.settings:id/entity_header",
-            "com.android.settings:id/entity_header_title"
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/recycler_view",
+            "android:id/title"
+    );
+
+    private static final Set<String> SHELTER_APP_INFO_INSTALLED_FORBIDDEN = set(
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_container"
+    );
+
+    private static final Set<String> SHELTER_APP_INFO_SUBSETTINGS_FORBIDDEN = set(
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/switch_bar",
+            "android:id/switch_widget",
+            "com.android.settings:id/switch_widget",
+            "com.android.settings:id/bottom_bar",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/entity_header"
     );
 
     /**
@@ -418,6 +426,16 @@ public final class SystemPageFingerprints {
         return detect(root, eventPackageName, eventClassName, null);
     }
 
+    /**
+     * Language-independent page detector.
+     *
+     * IMPORTANT: visibleEventText is intentionally ignored.  No localized
+     * page title is used for any security decision.
+     *
+     * The detector first uses the package/activity identity and then a small,
+     * deterministic structural/resource-id fingerprint.  It does not use
+     * scoring or OR-style fuzzy matching.
+     */
     public static Page detect(
             AccessibilityNodeInfo root,
             CharSequence eventPackageName,
@@ -430,11 +448,8 @@ public final class SystemPageFingerprints {
 
         String pkg = eventPackageName == null ? "" : eventPackageName.toString();
         String cls = eventClassName == null ? "" : eventClassName.toString();
-        String title = normalizeTitle(visibleEventText);
 
-        // Samsung Hidden Apps has a unique activity class in the supplied
-        // captures. This remains language-independent and does not depend on
-        // unavailable Accessibility resource IDs.
+        // Samsung Hidden Apps: unique activity identity; language-independent.
         if (LAUNCHER.equals(pkg) && APP_PICKER.equals(cls)) {
             return Page.HIDDEN_APPS;
         }
@@ -443,12 +458,30 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
 
-        // Shelter App Info may use either Settings activity observed on the
-        // target device. The brand name is intentionally the only text-based
-        // identity allowed for this page.
-        if ((SETTINGS_SUB_SETTINGS.equals(cls)
-                || SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls))
-                && titleContainsShelter(title)) {
+        /*
+         * Shelter App Info has two observed Settings representations:
+         *  1) InstalledAppDetailsTop with the entity-header structure;
+         *  2) SubSettings with the Settings switch-bar structure and the
+         *     application identity exposed in the accessibility tree.
+         *
+         * The application name "Shelter" is an application identity, not a
+         * localized page title, so it is deliberately retained as the only
+         * text check in this detector.
+         */
+        ScanResult scan = scanTree(root);
+        Set<String> ids = scan.resourceIds;
+
+        if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)
+                && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
+                && containsNone(ids, SHELTER_APP_INFO_INSTALLED_FORBIDDEN)
+                && scan.shelterEntityTitle) {
+            return Page.SHELTER_APP_INFO;
+        }
+
+        if (SETTINGS_SUB_SETTINGS.equals(cls)
+                && scan.shelterEntityTitle
+                && containsAll(ids, SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED)
+                && containsNone(ids, SHELTER_APP_INFO_SUBSETTINGS_FORBIDDEN)) {
             return Page.SHELTER_APP_INFO;
         }
 
@@ -457,86 +490,87 @@ public final class SystemPageFingerprints {
         }
 
         /*
-         * The target Samsung/Android 16 Accessibility service exposes no
-         * reliable resource IDs for these Settings pages (the live captures
-         * repeatedly report 5-15 IDs, while the UIAutomator dumps contain
-         * 19-31 IDs). Exact page labels from the user's supplied device logs
-         * are therefore the only observable page identity available without
-         * weakening the detector to "any SubSettings".
+         * Developer options.
+         * The Samsung switch-bar IDs are distinctive and are present in the
+         * observed Developer-options accessibility tree.  A generic Android
+         * switch widget is NOT sufficient because other Settings pages use it.
          */
-        if (TITLE_SECURITY.equals(title)) {
-            return Page.SECURITY_PRIVACY;
-        }
-        if (TITLE_DEVELOPER.equals(title)) {
+        if (containsAll(ids, set(
+                "com.android.settings:id/sesl_switchbar_container",
+                "com.android.settings:id/sesl_switchbar_switch"))
+                && containsNone(ids, set(
+                "com.android.settings:id/security_dashboard_alert_center",
+                "com.android.settings:id/entity_header",
+                "com.android.settings:id/bottom_bar"))) {
             return Page.DEVELOPER_OPTIONS;
         }
-        if (TITLE_DEVICE_ADMIN.equals(title)) {
+
+        /*
+         * Security & privacy.
+         * These four Samsung Settings IDs were observed together on the
+         * target Security & privacy page.  They are structural IDs, not text.
+         */
+        if (containsAll(ids, set(
+                "com.android.settings:id/microphone_label",
+                "com.android.settings:id/location_label",
+                "com.android.settings:id/camera_label",
+                "com.android.settings:id/used_duration"))
+                && containsNone(ids, set(
+                "com.android.settings:id/entity_header",
+                "com.android.settings:id/sesl_switchbar_container",
+                "com.android.settings:id/sesl_switchbar_switch"))) {
+            return Page.SECURITY_PRIVACY;
+        }
+
+        /*
+         * Device admin apps.
+         * On the observed Android 16/Samsung build this page exposes the
+         * common Settings list skeleton but no summary node and no switch
+         * widget.  The absence conditions are mandatory so that the nearby
+         * Accessibility-installed-apps and More-security pages do not match.
+         */
+        if (containsAll(ids, set(
+                "com.android.settings:id/action_bar",
+                "com.android.settings:id/collapsing_appbar_extended_title",
+                "com.android.settings:id/recycler_view",
+                "com.android.settings:id/title",
+                "com.android.settings:id/coordinator"))
+                && containsNone(ids, set(
+                "android:id/summary",
+                "android:id/switch_widget",
+                "com.android.settings:id/switch_widget",
+                "com.android.settings:id/sesl_switchbar_container",
+                "com.android.settings:id/sesl_switchbar_switch",
+                "com.android.settings:id/security_dashboard_alert_center",
+                "com.android.settings:id/entity_header"))) {
             return Page.DEVICE_ADMIN_APPS;
         }
-        if (TITLE_ACCESSIBILITY.equals(title)) {
+
+        /*
+         * Accessibility -> Installed apps.
+         * It has the same list skeleton as Device admin apps, but the observed
+         * Accessibility page exposes android:id/summary.  A switch widget or
+         * the Security-page IDs disqualify it.
+         */
+        if (containsAll(ids, set(
+                "com.android.settings:id/action_bar",
+                "com.android.settings:id/collapsing_appbar_extended_title",
+                "com.android.settings:id/recycler_view",
+                "com.android.settings:id/title",
+                "com.android.settings:id/coordinator",
+                "android:id/summary"))
+                && containsNone(ids, set(
+                "android:id/switch_widget",
+                "com.android.settings:id/switch_widget",
+                "com.android.settings:id/sesl_switchbar_container",
+                "com.android.settings:id/sesl_switchbar_switch",
+                "com.android.settings:id/security_dashboard_alert_center",
+                "com.android.settings:id/entity_header"))) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
 
-        // Retain the original resource-id fingerprints as a secondary path
-        // for devices/builds where Accessibility actually exposes the IDs.
-        ScanResult scan = scanTree(root);
-        Set<String> ids = scan.resourceIds;
-
-        if (ids.isEmpty()) {
-            return Page.NONE;
-        }
-
-        if (ids.contains("com.android.settings:id/security_dashboard_alert_center")
-                && containsAll(ids, SECURITY_ACCESSIBILITY_REQUIRED)
-                && containsNone(ids, SECURITY_FORBIDDEN)) {
-            return Page.SECURITY_PRIVACY;
-        }
-        if (ids.contains("com.android.settings:id/switch_bar")
-                && containsAll(ids, DEV_ACCESSIBILITY_REQUIRED)
-                && containsNone(ids, DEV_FORBIDDEN)) {
-            return Page.DEVELOPER_OPTIONS;
-        }
-        if (ids.contains("com.android.settings:id/entity_header")
-                && containsAll(ids, SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED)
-                && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
-                && scan.shelterEntityTitle) {
-            return Page.SHELTER_APP_INFO;
-        }
-        if (containsAll(ids, DEVICE_ADMIN_ACCESSIBILITY_REQUIRED)
-                && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
-            return Page.DEVICE_ADMIN_APPS;
-        }
-        if (containsAll(ids, ACCESSIBILITY_ACCESSIBILITY_REQUIRED)
-                && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
-            return Page.ACCESSIBILITY_INSTALLED_APPS;
-        }
-
+        // visibleEventText is deliberately not consulted.
         return Page.NONE;
-    }
-
-    private static final String TITLE_DEVELOPER = "گزینه های تهیه کننده";
-    private static final String TITLE_SECURITY = "امنیت و حریم خصوصی";
-    private static final String TITLE_DEVICE_ADMIN = "برنامه‌های مدیریت دستگاه";
-    private static final String TITLE_ACCESSIBILITY = "قابلیت دسترسی";
-
-    private static String normalizeTitle(CharSequence value) {
-        if (value == null) return "";
-        return value.toString()
-                .replace('\u200e', ' ')
-                .replace('\u200f', ' ')
-                .replace('\u200c', ' ')
-                .replace('\u202a', ' ')
-                .replace('\u202b', ' ')
-                .replace('\u202c', ' ')
-                .replace('\u202d', ' ')
-                .replace('\u202e', ' ')
-                .replace('\u00a0', ' ')
-                .replaceAll("\\s+", " ")
-                .trim();
-    }
-
-    private static boolean titleContainsShelter(String title) {
-        return title != null && title.toLowerCase().contains(SHELTER_NAME);
     }
 
     private static boolean containsAll(Set<String> actual, Set<String> required) {
