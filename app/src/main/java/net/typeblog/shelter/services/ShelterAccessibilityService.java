@@ -46,6 +46,7 @@ public final class ShelterAccessibilityService extends AccessibilityService {
         super.onServiceConnected();
         mSecurityGuard = new SystemPageSecurityGuard(this);
         mHandler = new Handler(Looper.getMainLooper());
+        Log.i(TAG, "DIAG_SERVICE_CONNECTED package=" + getPackageName());
     }
 
     @Override
@@ -55,12 +56,14 @@ public final class ShelterAccessibilityService extends AccessibilityService {
         }
 
         if (mSecurityGuard.isGraceActive()) {
+            Log.d(TAG, "DIAG_EVENT_IGNORED reason=GRACE_ACTIVE");
             return;
         }
 
         // Deliberately keep this to window-state changes. TYPE_WINDOWS_CHANGED
         // often has no page identity and could reuse stale information.
         if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            Log.d(TAG, "DIAG_EVENT_IGNORED reason=EVENT_TYPE type=" + event.getEventType());
             return;
         }
 
@@ -69,12 +72,20 @@ public final class ShelterAccessibilityService extends AccessibilityService {
         final String visibleText = normalize(eventText(event));
         final int windowId = event.getWindowId();
 
+        Log.i(TAG, "DIAG_EVENT_RECEIVED type=WINDOW_STATE_CHANGED"
+                + " package=" + pkg
+                + " class=" + cls
+                + " windowId=" + windowId
+                + " text=[" + visibleText + "]");
+
         if (windowId < 0 || pkg.length() == 0 || cls.length() == 0) {
+            Log.w(TAG, "DIAG_EVENT_REJECTED reason=MISSING_EVENT_ID_PACKAGE_OR_CLASS");
             return;
         }
 
         if (!"com.android.settings".equals(pkg)
                 && !"com.sec.android.app.launcher".equals(pkg)) {
+            Log.d(TAG, "DIAG_EVENT_REJECTED reason=PACKAGE_NOT_TARGET package=" + pkg);
             return;
         }
 
@@ -100,8 +111,17 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                     return;
                 }
 
+                Log.d(TAG, "DIAG_DETECT_ATTEMPT retry=" + retryIndex
+                        + " package=" + pkg
+                        + " class=" + cls
+                        + " eventWindowId=" + windowId
+                        + " text=[" + visibleText + "]");
+
                 SystemPageFingerprints.Page page =
                         detectWindow(pkg, cls, visibleText, windowId);
+
+                Log.i(TAG, "DIAG_FINGERPRINT_RESULT retry=" + retryIndex
+                        + " result=" + page);
 
                 if (page != SystemPageFingerprints.Page.NONE) {
                     Log.i(TAG, "DETECTED_PAGE=" + page
@@ -126,8 +146,10 @@ public final class ShelterAccessibilityService extends AccessibilityService {
 
         List<AccessibilityWindowInfo> windows = getWindows();
         if (windows == null || windows.isEmpty()) {
+            Log.w(TAG, "DIAG_WINDOWS count=0");
             return SystemPageFingerprints.Page.NONE;
         }
+        Log.d(TAG, "DIAG_WINDOWS count=" + windows.size());
 
         List<AccessibilityWindowInfo> candidates = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
@@ -156,17 +178,30 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                 try {
                     root = w.getRoot();
                     if (root == null) {
+                        Log.w(TAG, "DIAG_WINDOW id=" + w.getId() + " root=NULL active=" + w.isActive() + " focused=" + w.isFocused());
                         continue;
                     }
 
                     CharSequence rootPackage = root.getPackageName();
-                    if (rootPackage == null || !pkg.equals(rootPackage.toString())) {
+                    String rootPkg = rootPackage == null ? "" : rootPackage.toString();
+                    Log.d(TAG, "DIAG_WINDOW id=" + w.getId()
+                            + " type=" + w.getType()
+                            + " active=" + w.isActive()
+                            + " focused=" + w.isFocused()
+                            + " rootPackage=" + rootPkg
+                            + " rootClass=" + safeNodeClass(root));
+
+                    if (!pkg.equals(rootPkg)) {
+                        Log.d(TAG, "DIAG_WINDOW_REJECTED id=" + w.getId() + " reason=ROOT_PACKAGE_MISMATCH");
                         continue;
                     }
+
+                    logTreeSummary(root);
 
                     SystemPageFingerprints.Page page =
                             SystemPageFingerprints.detect(
                                     root, pkg, cls, visibleText);
+                    Log.d(TAG, "DIAG_WINDOW_FINGERPRINT id=" + w.getId() + " result=" + page);
                     if (page != SystemPageFingerprints.Page.NONE) {
                         return page;
                     }
@@ -184,6 +219,47 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                     w.recycle();
                 }
             }
+        }
+    }
+
+    private static String safeNodeClass(AccessibilityNodeInfo node) {
+        if (node == null || node.getClassName() == null) return "";
+        return node.getClassName().toString();
+    }
+
+    /** Diagnostic-only tree summary. It does not influence detection or security decisions. */
+    private void logTreeSummary(AccessibilityNodeInfo root) {
+        final int maxNodes = 500;
+        ArrayList<AccessibilityNodeInfo> stack = new ArrayList<>();
+        Set<String> ids = new HashSet<>();
+        int visited = 0;
+        stack.add(AccessibilityNodeInfo.obtain(root));
+        try {
+            while (!stack.isEmpty() && visited < maxNodes) {
+                AccessibilityNodeInfo node = stack.remove(stack.size() - 1);
+                if (node == null) continue;
+                visited++;
+                try {
+                    String id = node.getViewIdResourceName();
+                    if (id != null && !id.isEmpty()) ids.add(id);
+                    for (int i = 0; i < node.getChildCount(); i++) {
+                        AccessibilityNodeInfo child = node.getChild(i);
+                        if (child != null) stack.add(child);
+                    }
+                } finally {
+                    node.recycle();
+                }
+            }
+        } finally {
+            for (AccessibilityNodeInfo node : stack) {
+                if (node != null) node.recycle();
+            }
+        }
+        Log.i(TAG, "DIAG_TREE_SUMMARY visited=" + visited
+                + " resourceIdCount=" + ids.size()
+                + " resourceIds=" + ids);
+        if (visited >= maxNodes) {
+            Log.w(TAG, "DIAG_TREE_TRUNCATED maxNodes=" + maxNodes);
         }
     }
 
