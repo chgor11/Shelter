@@ -6,8 +6,9 @@ import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
-import android.util.Log;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -18,19 +19,26 @@ import net.typeblog.shelter.security.SystemPageSecurityGuard;
  * Main-profile AccessibilityService used only to detect the six protected
  * Settings/Samsung Launcher pages.
  *
- * <p>The service is intentionally production-only: no diagnostic tree dumps,
- * no text logging and no polling loop. Android delivers only window-state
- * events for the two relevant packages. The detector then inspects only the
- * exact Accessibility window that generated the event.</p>
+ * <p>The service deliberately does not assume that the AccessibilityEvent's
+ * window is the only window containing the complete page tree. On Samsung
+ * devices the event can arrive while the corresponding window is still being
+ * populated, and the event window's root can expose only a partial tree.
+ * Therefore detection examines each relevant AccessibilityWindowInfo root
+ * independently, preferring the event window and then other windows belonging
+ * to the same package.</p>
  *
  * <p>Resource-id reporting is enabled in accessibility_service_config.xml via
- * flagReportViewIds. Without that flag getViewIdResourceName() may be null and
- * the language-independent fingerprints cannot work reliably.</p>
+ * flagReportViewIds. Detection remains strict: the fingerprint itself decides
+ * whether a candidate root is a protected page. Resource IDs from different
+ * windows are never merged, because doing so could create a false positive.</p>
  */
 public final class ShelterAccessibilityService extends AccessibilityService {
 
-    private static final String TAG = "ShelterAccessibility";
-    private static final long ROOT_RETRY_DELAY_MS = 80L;
+    /*
+     * A short bounded retry is used because a window may exist before its
+     * complete accessibility tree becomes available. No polling loop is used.
+     */
+    private static final long[] ROOT_RETRY_DELAYS_MS = {0L, 50L, 150L};
 
     private SystemPageSecurityGuard mSecurityGuard;
     private Handler mHandler;
@@ -53,7 +61,7 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             return;
         }
 
-        // The grace interval is the cheapest possible fast path.
+        // Cheapest fast path: do not inspect accessibility trees during grace.
         if (mSecurityGuard.isGraceActive()) {
             return;
         }
@@ -62,43 +70,33 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             return;
         }
 
-        final int windowId = event.getWindowId();
-        if (windowId < 0) {
+        final int eventWindowId = event.getWindowId();
+        if (eventWindowId < 0) {
             return;
         }
 
-        final CharSequence packageName = event.getPackageName();
-        final CharSequence className = event.getClassName();
+        /*
+         * Copy only immutable identity values. AccessibilityEvent instances
+         * are owned/recycled by Android and must not be retained.
+         */
+        final String packageName = toStringOrEmpty(event.getPackageName());
+        final String className = toStringOrEmpty(event.getClassName());
 
-        Log.i(TAG, "EVENT package=" + packageName
-                + " class=" + className + " windowId=" + windowId);
-
-        // Do not retain the AccessibilityEvent itself: Android owns/recycles it.
-        detectWindow(windowId, packageName, className);
+        scheduleDetection(packageName, className, eventWindowId, 0);
     }
 
-    /**
-     * Resolves the event's exact window. A single short retry handles the
-     * normal transition in which the window exists in the event but its root
-     * has not yet been exposed through getWindows().
-     */
-    private void detectWindow(
-            final int windowId,
-            final CharSequence packageName,
-            final CharSequence className) {
+    private void scheduleDetection(
+            final String packageName,
+            final String className,
+            final int eventWindowId,
+            final int retryIndex) {
 
-        AccessibilityNodeInfo root = obtainRootForWindow(windowId);
-        if (root != null) {
-            Log.i(TAG, "ROOT_FOUND windowId=" + windowId);
-            detectAndRecycle(root, packageName, className);
+        if (mHandler == null || mSecurityGuard == null
+                || mSecurityGuard.isGraceActive()) {
             return;
         }
 
-        Log.w(TAG, "ROOT_NOT_FOUND windowId=" + windowId);
-
-        if (mHandler == null) {
-            return;
-        }
+        long delay = ROOT_RETRY_DELAYS_MS[retryIndex];
 
         mHandler.postDelayed(new Runnable() {
             @Override
@@ -107,78 +105,137 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                     return;
                 }
 
-                AccessibilityNodeInfo retryRoot = obtainRootForWindow(windowId);
-                if (retryRoot != null) {
-                    Log.i(TAG, "ROOT_FOUND_RETRY windowId=" + windowId);
-                    detectAndRecycle(retryRoot, packageName, className);
-                } else {
-                    Log.w(TAG, "ROOT_NOT_FOUND_RETRY windowId=" + windowId);
+                boolean detected = detectRelevantWindows(
+                        packageName, className, eventWindowId);
+
+                if (!detected
+                        && retryIndex + 1 < ROOT_RETRY_DELAYS_MS.length
+                        && mHandler != null) {
+                    scheduleDetection(
+                            packageName,
+                            className,
+                            eventWindowId,
+                            retryIndex + 1);
                 }
             }
-        }, ROOT_RETRY_DELAY_MS);
-    }
-
-    private void detectAndRecycle(
-            AccessibilityNodeInfo root,
-            CharSequence packageName,
-            CharSequence className) {
-        try {
-            SystemPageFingerprints.Page page =
-                    SystemPageFingerprints.detect(root, packageName, className);
-
-            Log.i(TAG, "DETECTED_PAGE=" + page
-                    + " package=" + packageName + " class=" + className);
-
-            if (page == SystemPageFingerprints.Page.NONE) {
-                // Temporary lightweight diagnostic: one additional resource-id
-                // collection only when detection fails. No node text/content
-                // or UI-tree dump is logged.
-                Set<String> ids = SystemPageFingerprints.collectResourceIds(root);
-                Log.w(TAG, "FINGERPRINT_NONE resourceIdCount=" + ids.size());
-            }
-
-            if (page != SystemPageFingerprints.Page.NONE
-                    && mSecurityGuard != null) {
-                Log.i(TAG, "SECURITY_GUARD_CALL page=" + page);
-                mSecurityGuard.onProtectedPageDetected(page);
-            }
-        } finally {
-            root.recycle();
-        }
+        }, delay);
     }
 
     /**
-     * Gets the root belonging to the exact Accessibility window id. Falling
-     * back to getRootInActiveWindow() is deliberately forbidden because the
-     * active window can change between the event and tree inspection.
+     * Examines candidate roots independently.
+     *
+     * <p>Candidate order:</p>
+     * <ol>
+     *     <li>the exact window that generated the event;</li>
+     *     <li>active/focused windows of the same package;</li>
+     *     <li>other windows whose root belongs to the same package.</li>
+     * </ol>
+     *
+     * <p>No IDs or nodes are combined between roots. A positive result must be
+     * produced by one complete candidate tree.</p>
      */
-    private AccessibilityNodeInfo obtainRootForWindow(int targetWindowId) {
+    private boolean detectRelevantWindows(
+            String packageName,
+            String className,
+            int eventWindowId) {
+
         List<AccessibilityWindowInfo> windows = getWindows();
         if (windows == null || windows.isEmpty()) {
-            return null;
+            return false;
         }
 
-        for (AccessibilityWindowInfo window : windows) {
-            if (window == null) {
-                continue;
-            }
+        final List<AccessibilityWindowInfo> ordered = new ArrayList<>();
+        final Set<Integer> addedIds = new HashSet<>();
 
-            try {
-                if (window.getId() == targetWindowId) {
-                    return window.getRoot();
+        try {
+            // Pass 1: exact event window.
+            for (AccessibilityWindowInfo window : windows) {
+                if (window == null || window.getId() != eventWindowId) {
+                    continue;
                 }
-            } finally {
-                window.recycle();
+                if (addedIds.add(window.getId())) {
+                    ordered.add(window);
+                }
+                break;
+            }
+
+            // Pass 2: active/focused windows. The root package is verified
+            // before fingerprint detection below.
+            for (AccessibilityWindowInfo window : windows) {
+                if (window == null || addedIds.contains(window.getId())) {
+                    continue;
+                }
+                if (window.isActive() || window.isFocused()) {
+                    if (addedIds.add(window.getId())) {
+                        ordered.add(window);
+                    }
+                }
+            }
+
+            // Pass 3: all remaining interactive windows.
+            for (AccessibilityWindowInfo window : windows) {
+                if (window == null || addedIds.contains(window.getId())) {
+                    continue;
+                }
+                if (addedIds.add(window.getId())) {
+                    ordered.add(window);
+                }
+            }
+
+            for (AccessibilityWindowInfo window : ordered) {
+                AccessibilityNodeInfo root = null;
+                try {
+                    root = window.getRoot();
+                    if (root == null) {
+                        continue;
+                    }
+
+                    /*
+                     * Do not inspect an unrelated system window. The event
+                     * package/class remain authoritative for page identity,
+                     * while the root package confirms that this candidate
+                     * belongs to the same application window.
+                     */
+                    CharSequence rootPackage = root.getPackageName();
+                    if (rootPackage == null
+                            || !packageName.equals(rootPackage.toString())) {
+                        continue;
+                    }
+
+                    SystemPageFingerprints.Page page =
+                            SystemPageFingerprints.detect(
+                                    root, packageName, className);
+
+                    if (page != SystemPageFingerprints.Page.NONE) {
+                        if (mSecurityGuard != null) {
+                            mSecurityGuard.onProtectedPageDetected(page);
+                        }
+                        return true;
+                    }
+                } finally {
+                    if (root != null) {
+                        root.recycle();
+                    }
+                }
+            }
+
+            return false;
+        } finally {
+            for (AccessibilityWindowInfo window : windows) {
+                if (window != null) {
+                    window.recycle();
+                }
             }
         }
+    }
 
-        return null;
+    private static String toStringOrEmpty(CharSequence value) {
+        return value == null ? "" : value.toString();
     }
 
     @Override
     public void onInterrupt() {
-        // No action required. The security guard fails closed until the
-        // AccessibilityService is connected and can inspect a real window.
+        // No action required.
     }
 
     @Override
