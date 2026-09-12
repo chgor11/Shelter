@@ -40,7 +40,7 @@ public final class SystemPageFingerprints {
     private static final String APP_PICKER =
             "com.sec.android.app.launcher.apppicker.AppPickerActivity";
 
-    private static final String SHELTER_NAME = "shelter";
+    private static final String SHELTER_NAME = "Shelter";
 
     private static Set<String> set(String... values) {
         return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values)));
@@ -480,7 +480,8 @@ public final class SystemPageFingerprints {
             // descriptions for page identity. Only the exact Settings
             // entity_header_title node may establish the Shelter identity.
             if ("com.android.settings:id/entity_header_title".equals(resourceId)
-                    && containsIgnoreCase(node.getText(), SHELTER_NAME)) {
+                    && node.getText() != null
+                    && SHELTER_NAME.equals(node.getText().toString())) {
                 result.shelterEntityTitle = true;
             }
         }
