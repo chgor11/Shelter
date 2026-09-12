@@ -6,8 +6,10 @@ import android.os.Looper;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
+import android.util.Log;
 
 import java.util.List;
+import java.util.Set;
 
 import net.typeblog.shelter.security.SystemPageFingerprints;
 import net.typeblog.shelter.security.SystemPageSecurityGuard;
@@ -27,6 +29,7 @@ import net.typeblog.shelter.security.SystemPageSecurityGuard;
  */
 public final class ShelterAccessibilityService extends AccessibilityService {
 
+    private static final String TAG = "ShelterAccessibility";
     private static final long ROOT_RETRY_DELAY_MS = 80L;
 
     private SystemPageSecurityGuard mSecurityGuard;
@@ -67,6 +70,9 @@ public final class ShelterAccessibilityService extends AccessibilityService {
         final CharSequence packageName = event.getPackageName();
         final CharSequence className = event.getClassName();
 
+        Log.i(TAG, "EVENT package=" + packageName
+                + " class=" + className + " windowId=" + windowId);
+
         // Do not retain the AccessibilityEvent itself: Android owns/recycles it.
         detectWindow(windowId, packageName, className);
     }
@@ -83,9 +89,12 @@ public final class ShelterAccessibilityService extends AccessibilityService {
 
         AccessibilityNodeInfo root = obtainRootForWindow(windowId);
         if (root != null) {
+            Log.i(TAG, "ROOT_FOUND windowId=" + windowId);
             detectAndRecycle(root, packageName, className);
             return;
         }
+
+        Log.w(TAG, "ROOT_NOT_FOUND windowId=" + windowId);
 
         if (mHandler == null) {
             return;
@@ -100,7 +109,10 @@ public final class ShelterAccessibilityService extends AccessibilityService {
 
                 AccessibilityNodeInfo retryRoot = obtainRootForWindow(windowId);
                 if (retryRoot != null) {
+                    Log.i(TAG, "ROOT_FOUND_RETRY windowId=" + windowId);
                     detectAndRecycle(retryRoot, packageName, className);
+                } else {
+                    Log.w(TAG, "ROOT_NOT_FOUND_RETRY windowId=" + windowId);
                 }
             }
         }, ROOT_RETRY_DELAY_MS);
@@ -114,8 +126,20 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             SystemPageFingerprints.Page page =
                     SystemPageFingerprints.detect(root, packageName, className);
 
+            Log.i(TAG, "DETECTED_PAGE=" + page
+                    + " package=" + packageName + " class=" + className);
+
+            if (page == SystemPageFingerprints.Page.NONE) {
+                // Temporary lightweight diagnostic: one additional resource-id
+                // collection only when detection fails. No node text/content
+                // or UI-tree dump is logged.
+                Set<String> ids = SystemPageFingerprints.collectResourceIds(root);
+                Log.w(TAG, "FINGERPRINT_NONE resourceIdCount=" + ids.size());
+            }
+
             if (page != SystemPageFingerprints.Page.NONE
                     && mSecurityGuard != null) {
+                Log.i(TAG, "SECURITY_GUARD_CALL page=" + page);
                 mSecurityGuard.onProtectedPageDetected(page);
             }
         } finally {
