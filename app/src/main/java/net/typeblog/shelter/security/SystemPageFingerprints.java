@@ -358,74 +358,76 @@ public final class SystemPageFingerprints {
     public static Page detect(
             AccessibilityNodeInfo root,
             CharSequence eventPackageName,
-            CharSequence eventClassName,
-            CharSequence visibleText) {
-
+            CharSequence eventClassName) {
+    
         if (root == null) {
             return Page.NONE;
         }
-
-        // The AccessibilityService already filters packages in its XML
-        // configuration. Keep these checks here as a fail-closed boundary
-        // because this detector is also a standalone security component.
-        String pkg = eventPackageName == null ? "" : eventPackageName.toString();
-        String cls = eventClassName == null ? "" : eventClassName.toString();
-
+    
+        String pkg = eventPackageName == null
+                ? ""
+                : eventPackageName.toString();
+    
+        String cls = eventClassName == null
+                ? ""
+                : eventClassName.toString();
+    
         final boolean settingsWindow =
-                SETTINGS.equals(pkg) && SETTINGS_SUB_SETTINGS.equals(cls);
+                SETTINGS.equals(pkg)
+                        && SETTINGS_SUB_SETTINGS.equals(cls);
+    
         final boolean launcherWindow =
-                LAUNCHER.equals(pkg) && APP_PICKER.equals(cls);
-
+                LAUNCHER.equals(pkg)
+                        && APP_PICKER.equals(cls);
+    
         if (!settingsWindow && !launcherWindow) {
             return Page.NONE;
         }
-
-        // Exactly one tree traversal per detection. The tree is not traversed
-        // again for individual fingerprints.
-        Set<String> ids = collectResourceIds(root);
-
+    
+        ScanResult scan = collectResourceIds(root);
+        Set<String> ids = scan.resourceIds;
+    
         if (launcherWindow) {
-            // Launcher/AppPickerActivity can only be the Hidden Apps target in
-            // the current fingerprint set.
             if (containsAll(ids, HIDDEN_APPS_REQUIRED)
                     && containsNone(ids, HIDDEN_APPS_FORBIDDEN)) {
                 return Page.HIDDEN_APPS;
             }
+    
             return Page.NONE;
         }
-
-        // Settings/SubSettings: run the cheapest distinctive candidates first.
-        // Each candidate is still a strict AND + NOT match; this is only an
-        // ordering optimization and does not change fingerprint semantics.
-        if (ids.contains("com.android.settings:id/security_dashboard_alert_center")
+    
+        if (ids.contains(
+                "com.android.settings:id/security_dashboard_alert_center")
                 && containsAll(ids, SECURITY_REQUIRED)
                 && containsNone(ids, SECURITY_FORBIDDEN)) {
             return Page.SECURITY_PRIVACY;
         }
-
-        if (ids.contains("com.android.settings:id/switch_bar")
+    
+        if (ids.contains(
+                "com.android.settings:id/switch_bar")
                 && containsAll(ids, DEV_REQUIRED)
                 && containsNone(ids, DEV_FORBIDDEN)) {
             return Page.DEVELOPER_OPTIONS;
         }
-
-        if (ids.contains("com.android.settings:id/entity_header")
+    
+        if (ids.contains(
+                "com.android.settings:id/entity_header")
                 && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
-                && containsShelterIdentity(root, visibleText)) {
+                && scan.shelterEntityTitle) {
             return Page.SHELTER_APP_INFO;
         }
-
+    
         if (containsAll(ids, DEVICE_ADMIN_REQUIRED)
                 && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
             return Page.DEVICE_ADMIN_APPS;
         }
-
+    
         if (containsAll(ids, ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
-
+    
         return Page.NONE;
     }
 
