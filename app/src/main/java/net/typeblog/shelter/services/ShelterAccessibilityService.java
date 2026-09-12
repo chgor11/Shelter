@@ -3,6 +3,7 @@ package net.typeblog.shelter.services;
 import android.accessibilityservice.AccessibilityService;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -16,110 +17,81 @@ import net.typeblog.shelter.security.SystemPageFingerprints;
 import net.typeblog.shelter.security.SystemPageSecurityGuard;
 
 /**
- * Main-profile AccessibilityService used only to detect the six protected
- * Settings/Samsung Launcher pages.
+ * Main-profile AccessibilityService for the six protected system pages.
  *
- * <p>The service deliberately does not assume that the AccessibilityEvent's
- * window is the only window containing the complete page tree. On Samsung
- * devices the event can arrive while the corresponding window is still being
- * populated, and the event window's root can expose only a partial tree.
- * Therefore detection examines each relevant AccessibilityWindowInfo root
- * independently, preferring the event window and then other windows belonging
- * to the same package.</p>
+ * <p>Important Samsung/Android 16 compatibility note: on the target device
+ * AccessibilityNodeInfo does not expose the resource IDs present in the
+ * UIAutomator captures, even with flagReportViewIds enabled. The live logs
+ * show 0-15 resource IDs and therefore the original resource-id-only
+ * detector can never match those captures. Detection consequently uses the
+ * exact window-state identity observed on the target device: package +
+ * activity class + normalized visible page label. Hidden Apps is identified
+ * by its unique AppPickerActivity class, and Shelter App Info additionally
+ * requires the Shelter label. No generic Settings SubSettings page is locked.
  *
- * <p>Resource-id reporting is enabled in accessibility_service_config.xml via
- * flagReportViewIds. Detection remains strict: the fingerprint itself decides
- * whether a candidate root is a protected page. Resource IDs from different
- * windows are never merged, because doing so could create a false positive.</p>
+ * <p>The tree is still checked to ensure the event window belongs to the
+ * expected package. Detection is event driven and bounded; there is no
+ * continuous polling loop.</p>
  */
 public final class ShelterAccessibilityService extends AccessibilityService {
 
-    /*
-     * A short bounded retry is used because a window may exist before its
-     * complete accessibility tree becomes available. No polling loop is used.
-     */
-    private static final long[] ROOT_RETRY_DELAYS_MS = {0L, 80L, 200L, 500L};
+    private static final String TAG = "ShelterAccessibility";
+    private static final long[] RETRY_DELAYS_MS = {0L, 80L, 200L, 500L};
 
     private SystemPageSecurityGuard mSecurityGuard;
     private Handler mHandler;
 
-    // Last real window-state identity. TYPE_WINDOWS_CHANGED may not carry
-    // package/class, so it can reuse the identity of the most recent state
-    // event for the same window.
-    private String mLastPackageName = "";
-    private String mLastClassName = "";
-    private int mLastWindowId = -1;
-
     @Override
     protected void onServiceConnected() {
         super.onServiceConnected();
-
-        if (mSecurityGuard == null) {
-            mSecurityGuard = new SystemPageSecurityGuard(this);
-        }
-        if (mHandler == null) {
-            mHandler = new Handler(Looper.getMainLooper());
-        }
+        mSecurityGuard = new SystemPageSecurityGuard(this);
+        mHandler = new Handler(Looper.getMainLooper());
     }
 
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (event == null || mSecurityGuard == null) {
+        if (event == null || mSecurityGuard == null || mHandler == null) {
             return;
         }
 
-        // Cheapest fast path: do not inspect accessibility trees during grace.
         if (mSecurityGuard.isGraceActive()) {
             return;
         }
 
-        final int eventType = event.getEventType();
-        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                && eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+        // Deliberately keep this to window-state changes. TYPE_WINDOWS_CHANGED
+        // often has no page identity and could reuse stale information.
+        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
             return;
         }
 
-        int eventWindowId = event.getWindowId();
-        String packageName = toStringOrEmpty(event.getPackageName());
-        String className = toStringOrEmpty(event.getClassName());
+        final String pkg = toStringOrEmpty(event.getPackageName());
+        final String cls = toStringOrEmpty(event.getClassName());
+        final String visibleText = normalize(eventText(event));
+        final int windowId = event.getWindowId();
 
-        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
-            if (eventWindowId < 0 || packageName.length() == 0 || className.length() == 0) {
-                return;
-            }
-            mLastWindowId = eventWindowId;
-            mLastPackageName = packageName;
-            mLastClassName = className;
-        } else {
-            if (packageName.length() == 0) {
-                packageName = mLastPackageName;
-            }
-            if (className.length() == 0) {
-                className = mLastClassName;
-            }
-            if (eventWindowId < 0) {
-                eventWindowId = mLastWindowId;
-            }
-            if (packageName.length() == 0 || className.length() == 0 || eventWindowId < 0) {
-                return;
-            }
+        if (windowId < 0 || pkg.length() == 0 || cls.length() == 0) {
+            return;
         }
 
-        scheduleDetection(packageName, className, eventWindowId, 0);
+        if (!"com.android.settings".equals(pkg)
+                && !"com.sec.android.app.launcher".equals(pkg)) {
+            return;
+        }
+
+        scheduleDetection(pkg, cls, visibleText, windowId, 0);
     }
 
     private void scheduleDetection(
-            final String packageName,
-            final String className,
-            final int eventWindowId,
+            final String pkg,
+            final String cls,
+            final String visibleText,
+            final int windowId,
             final int retryIndex) {
 
         if (mHandler == null || mSecurityGuard == null
                 || mSecurityGuard.isGraceActive()) {
             return;
         }
-
-        long delay = ROOT_RETRY_DELAYS_MS[retryIndex];
 
         mHandler.postDelayed(new Runnable() {
             @Override
@@ -128,112 +100,75 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                     return;
                 }
 
-                boolean detected = detectRelevantWindows(
-                        packageName, className, eventWindowId);
+                SystemPageFingerprints.Page page =
+                        detectWindow(pkg, cls, visibleText, windowId);
 
-                if (!detected
-                        && retryIndex + 1 < ROOT_RETRY_DELAYS_MS.length
-                        && mHandler != null) {
+                if (page != SystemPageFingerprints.Page.NONE) {
+                    Log.i(TAG, "DETECTED_PAGE=" + page
+                            + " package=" + pkg + " class=" + cls);
+                    mSecurityGuard.onProtectedPageDetected(page);
+                    return;
+                }
+
+                if (retryIndex + 1 < RETRY_DELAYS_MS.length) {
                     scheduleDetection(
-                            packageName,
-                            className,
-                            eventWindowId,
-                            retryIndex + 1);
+                            pkg, cls, visibleText, windowId, retryIndex + 1);
                 }
             }
-        }, delay);
+        }, RETRY_DELAYS_MS[retryIndex]);
     }
 
-    /**
-     * Examines candidate roots independently.
-     *
-     * <p>Candidate order:</p>
-     * <ol>
-     *     <li>the exact window that generated the event;</li>
-     *     <li>active/focused windows of the same package;</li>
-     *     <li>other windows whose root belongs to the same package.</li>
-     * </ol>
-     *
-     * <p>No IDs or nodes are combined between roots. A positive result must be
-     * produced by one complete candidate tree.</p>
-     */
-    private boolean detectRelevantWindows(
-            String packageName,
-            String className,
+    private SystemPageFingerprints.Page detectWindow(
+            String pkg,
+            String cls,
+            String visibleText,
             int eventWindowId) {
 
         List<AccessibilityWindowInfo> windows = getWindows();
         if (windows == null || windows.isEmpty()) {
-            return false;
+            return SystemPageFingerprints.Page.NONE;
         }
 
-        final List<AccessibilityWindowInfo> ordered = new ArrayList<>();
-        final Set<Integer> addedIds = new HashSet<>();
+        List<AccessibilityWindowInfo> candidates = new ArrayList<>();
+        Set<Integer> seen = new HashSet<>();
 
         try {
-            // Pass 1: exact event window.
-            for (AccessibilityWindowInfo window : windows) {
-                if (window == null || window.getId() != eventWindowId) {
-                    continue;
-                }
-                if (addedIds.add(window.getId())) {
-                    ordered.add(window);
-                }
-                break;
-            }
-
-            // Pass 2: active/focused windows. The root package is verified
-            // before fingerprint detection below.
-            for (AccessibilityWindowInfo window : windows) {
-                if (window == null || addedIds.contains(window.getId())) {
-                    continue;
-                }
-                if (window.isActive() || window.isFocused()) {
-                    if (addedIds.add(window.getId())) {
-                        ordered.add(window);
-                    }
+            // Exact event window first.
+            for (AccessibilityWindowInfo w : windows) {
+                if (w != null && w.getId() == eventWindowId && seen.add(w.getId())) {
+                    candidates.add(w);
+                    break;
                 }
             }
 
-            // Pass 3: all remaining interactive windows.
-            for (AccessibilityWindowInfo window : windows) {
-                if (window == null || addedIds.contains(window.getId())) {
-                    continue;
-                }
-                if (addedIds.add(window.getId())) {
-                    ordered.add(window);
+            // Then the active/focused window for transient Samsung window-id
+            // changes. It must still have the same package at root level.
+            for (AccessibilityWindowInfo w : windows) {
+                if (w != null && !seen.contains(w.getId())
+                        && (w.isActive() || w.isFocused())) {
+                    candidates.add(w);
+                    seen.add(w.getId());
                 }
             }
 
-            for (AccessibilityWindowInfo window : ordered) {
+            for (AccessibilityWindowInfo w : candidates) {
                 AccessibilityNodeInfo root = null;
                 try {
-                    root = window.getRoot();
+                    root = w.getRoot();
                     if (root == null) {
                         continue;
                     }
 
-                    /*
-                     * Do not inspect an unrelated system window. The event
-                     * package/class remain authoritative for page identity,
-                     * while the root package confirms that this candidate
-                     * belongs to the same application window.
-                     */
                     CharSequence rootPackage = root.getPackageName();
-                    if (rootPackage == null
-                            || !packageName.equals(rootPackage.toString())) {
+                    if (rootPackage == null || !pkg.equals(rootPackage.toString())) {
                         continue;
                     }
 
                     SystemPageFingerprints.Page page =
                             SystemPageFingerprints.detect(
-                                    root, packageName, className);
-
+                                    root, pkg, cls, visibleText);
                     if (page != SystemPageFingerprints.Page.NONE) {
-                        if (mSecurityGuard != null) {
-                            mSecurityGuard.onProtectedPageDetected(page);
-                        }
-                        return true;
+                        return page;
                     }
                 } finally {
                     if (root != null) {
@@ -242,14 +177,43 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                 }
             }
 
-            return false;
+            return SystemPageFingerprints.Page.NONE;
         } finally {
-            for (AccessibilityWindowInfo window : windows) {
-                if (window != null) {
-                    window.recycle();
+            for (AccessibilityWindowInfo w : windows) {
+                if (w != null) {
+                    w.recycle();
                 }
             }
         }
+    }
+
+    private static String eventText(AccessibilityEvent event) {
+        if (event == null || event.getText() == null || event.getText().isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (CharSequence part : event.getText()) {
+            if (part == null) continue;
+            if (out.length() > 0) out.append(' ');
+            out.append(part);
+        }
+        return out.toString();
+    }
+
+    private static String normalize(String value) {
+        if (value == null) return "";
+        return value
+                .replace('\u200e', ' ')
+                .replace('\u200f', ' ')
+                .replace('\u200c', ' ')
+                .replace('\u202a', ' ')
+                .replace('\u202b', ' ')
+                .replace('\u202c', ' ')
+                .replace('\u202d', ' ')
+                .replace('\u202e', ' ')
+                .replace('\u00a0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
     }
 
     private static String toStringOrEmpty(CharSequence value) {
@@ -258,25 +222,19 @@ public final class ShelterAccessibilityService extends AccessibilityService {
 
     @Override
     public void onInterrupt() {
-        // No action required.
+        Log.w(TAG, "Accessibility service interrupted");
     }
 
     @Override
     public void onDestroy() {
         if (mHandler != null) {
             mHandler.removeCallbacksAndMessages(null);
-            mHandler = null;
         }
-
         if (mSecurityGuard != null) {
             mSecurityGuard.destroy();
             mSecurityGuard = null;
         }
-
-        mLastPackageName = "";
-        mLastClassName = "";
-        mLastWindowId = -1;
-
+        mHandler = null;
         super.onDestroy();
     }
 }
