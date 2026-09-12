@@ -13,7 +13,8 @@ import java.util.Set;
  * Design:
  *  - Every REQUIRED resource-id must be present.
  *  - Every FORBIDDEN resource-id must be absent.
- *  - Package/class are checked as hard conditions.
+ *  - Package/class are checked as hard conditions. Shelter App Info accepts
+ *    the two Settings activity classes observed for that page on Android 16.
  *  - The Shelter App Info fingerprint additionally requires the visible
  *    application identity to contain "Shelter" (case-insensitive).
  *
@@ -35,12 +36,14 @@ public final class SystemPageFingerprints {
 
     private static final String SETTINGS = "com.android.settings";
     private static final String SETTINGS_SUB_SETTINGS = "com.android.settings.SubSettings";
+    private static final String SETTINGS_INSTALLED_APP_DETAILS_TOP =
+            "com.android.settings.applications.InstalledAppDetailsTop";
 
     private static final String LAUNCHER = "com.sec.android.app.launcher";
     private static final String APP_PICKER =
             "com.sec.android.app.launcher.apppicker.AppPickerActivity";
 
-    private static final String SHELTER_NAME = "Shelter";
+    private static final String SHELTER_NAME = "shelter";
 
     private static Set<String> set(String... values) {
         return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values)));
@@ -372,15 +375,19 @@ public final class SystemPageFingerprints {
                 ? ""
                 : eventClassName.toString();
     
-        final boolean settingsWindow =
-                SETTINGS.equals(pkg)
-                        && SETTINGS_SUB_SETTINGS.equals(cls);
-    
+        final boolean settingsPackage = SETTINGS.equals(pkg);
+        final boolean settingsSubSettings =
+                settingsPackage && SETTINGS_SUB_SETTINGS.equals(cls);
+        final boolean shelterAppInfoActivity =
+                settingsPackage
+                        && (SETTINGS_SUB_SETTINGS.equals(cls)
+                        || SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls));
+
         final boolean launcherWindow =
                 LAUNCHER.equals(pkg)
                         && APP_PICKER.equals(cls);
-    
-        if (!settingsWindow && !launcherWindow) {
+
+        if (!settingsSubSettings && !shelterAppInfoActivity && !launcherWindow) {
             return Page.NONE;
         }
     
@@ -396,21 +403,24 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
     
-        if (ids.contains(
+        if (settingsSubSettings
+                && ids.contains(
                 "com.android.settings:id/security_dashboard_alert_center")
                 && containsAll(ids, SECURITY_REQUIRED)
                 && containsNone(ids, SECURITY_FORBIDDEN)) {
             return Page.SECURITY_PRIVACY;
         }
     
-        if (ids.contains(
+        if (settingsSubSettings
+                && ids.contains(
                 "com.android.settings:id/switch_bar")
                 && containsAll(ids, DEV_REQUIRED)
                 && containsNone(ids, DEV_FORBIDDEN)) {
             return Page.DEVELOPER_OPTIONS;
         }
     
-        if (ids.contains(
+        if (shelterAppInfoActivity
+                && ids.contains(
                 "com.android.settings:id/entity_header")
                 && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
@@ -418,12 +428,14 @@ public final class SystemPageFingerprints {
             return Page.SHELTER_APP_INFO;
         }
     
-        if (containsAll(ids, DEVICE_ADMIN_REQUIRED)
+        if (settingsSubSettings
+                && containsAll(ids, DEVICE_ADMIN_REQUIRED)
                 && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
             return Page.DEVICE_ADMIN_APPS;
         }
     
-        if (containsAll(ids, ACCESSIBILITY_REQUIRED)
+        if (settingsSubSettings
+                && containsAll(ids, ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
@@ -480,8 +492,7 @@ public final class SystemPageFingerprints {
             // descriptions for page identity. Only the exact Settings
             // entity_header_title node may establish the Shelter identity.
             if ("com.android.settings:id/entity_header_title".equals(resourceId)
-                    && node.getText() != null
-                    && SHELTER_NAME.equals(node.getText().toString())) {
+                    && containsIgnoreCase(node.getText(), SHELTER_NAME)) {
                 result.shelterEntityTitle = true;
             }
         }
