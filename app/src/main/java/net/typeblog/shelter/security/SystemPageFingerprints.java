@@ -384,7 +384,7 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
     
-        ScanResult scan = collectResourceIds(root);
+        ScanResult scan = scanTree(root);
         Set<String> ids = scan.resourceIds;
     
         if (launcherWindow) {
@@ -444,7 +444,69 @@ public final class SystemPageFingerprints {
         return true;
     }
 
-    /** Recursively collects every non-empty Accessibility resource-id. */
+    /**
+     * Internal production scan.
+     *
+     * Performs exactly one traversal of the Accessibility tree and collects
+     * both resource IDs and the narrowly-scoped Shelter identity used by the
+     * App Info fingerprint.
+     */
+    private static final class ScanResult {
+        final Set<String> resourceIds = new HashSet<>();
+        boolean shelterEntityTitle;
+    }
+
+    private static ScanResult scanTree(AccessibilityNodeInfo root) {
+        ScanResult result = new ScanResult();
+        scanTreeRecursive(root, result);
+        return result;
+    }
+
+    private static void scanTreeRecursive(
+            AccessibilityNodeInfo node,
+            ScanResult result) {
+
+        if (node == null) {
+            return;
+        }
+
+        CharSequence id = node.getViewIdResourceName();
+
+        if (id != null && id.length() != 0) {
+            String resourceId = id.toString();
+            result.resourceIds.add(resourceId);
+
+            // Do not use event.getText(), arbitrary node text, or content
+            // descriptions for page identity. Only the exact Settings
+            // entity_header_title node may establish the Shelter identity.
+            if ("com.android.settings:id/entity_header_title".equals(resourceId)
+                    && containsIgnoreCase(node.getText(), SHELTER_NAME)) {
+                result.shelterEntityTitle = true;
+            }
+        }
+
+        final int childCount = node.getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                scanTreeRecursive(child, result);
+            } finally {
+                child.recycle();
+            }
+        }
+    }
+
+    /**
+     * Recursively collects every non-empty Accessibility resource-id.
+     *
+     * Kept as a separate public helper for existing diagnostic callers.
+     * It intentionally retains its original Set<String> API so callers are
+     * not broken by the production detector's internal ScanResult.
+     */
     public static Set<String> collectResourceIds(AccessibilityNodeInfo root) {
         Set<String> result = new HashSet<>();
         collectResourceIdsRecursive(root, result);
@@ -454,6 +516,7 @@ public final class SystemPageFingerprints {
     private static void collectResourceIdsRecursive(
             AccessibilityNodeInfo node,
             Set<String> out) {
+
         if (node == null) {
             return;
         }
@@ -478,49 +541,12 @@ public final class SystemPageFingerprints {
         }
     }
 
-    /**
-     * Shelter identity is intentionally text-based only as a secondary identity
-     * check for App Info. It is NOT used for the other five pages, and no other
-     * localized page title is used anywhere in this detector.
-     */
-    private static boolean containsShelterIdentity(
-            AccessibilityNodeInfo root,
-            CharSequence visibleEventText) {
-
-        if (containsIgnoreCase(visibleEventText, SHELTER_NAME)) {
-            return true;
-        }
-
-        return containsShelterIdentityRecursive(root);
-    }
-
-    private static boolean containsShelterIdentityRecursive(AccessibilityNodeInfo node) {
-        if (node == null) {
-            return false;
-        }
-
-        if (containsIgnoreCase(node.getText(), SHELTER_NAME)
-                || containsIgnoreCase(node.getContentDescription(), SHELTER_NAME)) {
-            return true;
-        }
-
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-            if (child != null) {
-                try {
-                    if (containsShelterIdentityRecursive(child)) {
-                        return true;
-                    }
-                } finally {
-                    child.recycle();
-                }
-            }
-        }
-        return false;
-    }
-
-    private static boolean containsIgnoreCase(CharSequence value, String needle) {
-        return value != null && value.toString().toLowerCase().contains(needle);
+    private static boolean containsIgnoreCase(
+            CharSequence value,
+            String needle) {
+        return value != null
+                && needle != null
+                && value.toString().toLowerCase().contains(needle);
     }
 
     public static Set<String> requiredFor(Page page) {
