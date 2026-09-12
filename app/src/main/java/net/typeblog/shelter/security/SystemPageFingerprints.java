@@ -212,6 +212,48 @@ public final class SystemPageFingerprints {
             "com.android.settings:id/sesl_action_bar_overflow_button"
     );
 
+    /*
+     * Accessibility exposes a different tree from UIAutomator/uiautomator dump.
+     * The original capture contains many layout/container IDs that are not
+     * guaranteed to be exposed by AccessibilityNodeInfo. Requiring every one
+     * therefore makes a real page impossible to recognize (the live service was
+     * seeing only 6-15 IDs). These are the stable, page-specific IDs that must
+     * be observable in the Accessibility tree. They are still ANDed; this is
+     * not scoring and IDs from different windows are never combined.
+     */
+    private static final Set<String> DEV_ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/switch_bar",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/recycler_view"
+    );
+
+    private static final Set<String> SECURITY_ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/recycler_view"
+    );
+
+    private static final Set<String> DEVICE_ADMIN_ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/icon_frame"
+    );
+
+    private static final Set<String> ACCESSIBILITY_ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/title_frame",
+            "android:id/title",
+            "android:id/summary"
+    );
+
+    private static final Set<String> HIDDEN_APPS_ACCESSIBILITY_REQUIRED = set(
+            "com.sec.android.app.launcher:id/apps_picker_container",
+            "com.sec.android.app.launcher:id/root_app_picker_container"
+    );
+
+    private static final Set<String> SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED = set(
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_title"
+    );
+
     /**
      * These are the target-page IDs that must NOT be present in a competing
      * fingerprint. They are deliberately kept explicit rather than inferred
@@ -395,7 +437,7 @@ public final class SystemPageFingerprints {
         Set<String> ids = scan.resourceIds;
     
         if (launcherWindow) {
-            if (containsAll(ids, HIDDEN_APPS_REQUIRED)
+            if (containsAll(ids, HIDDEN_APPS_ACCESSIBILITY_REQUIRED)
                     && containsNone(ids, HIDDEN_APPS_FORBIDDEN)) {
                 return Page.HIDDEN_APPS;
             }
@@ -406,7 +448,7 @@ public final class SystemPageFingerprints {
         if (settingsSubSettings
                 && ids.contains(
                 "com.android.settings:id/security_dashboard_alert_center")
-                && containsAll(ids, SECURITY_REQUIRED)
+                && containsAll(ids, SECURITY_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, SECURITY_FORBIDDEN)) {
             return Page.SECURITY_PRIVACY;
         }
@@ -414,7 +456,7 @@ public final class SystemPageFingerprints {
         if (settingsSubSettings
                 && ids.contains(
                 "com.android.settings:id/switch_bar")
-                && containsAll(ids, DEV_REQUIRED)
+                && containsAll(ids, DEV_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, DEV_FORBIDDEN)) {
             return Page.DEVELOPER_OPTIONS;
         }
@@ -422,20 +464,20 @@ public final class SystemPageFingerprints {
         if (shelterAppInfoActivity
                 && ids.contains(
                 "com.android.settings:id/entity_header")
-                && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
+                && containsAll(ids, SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
                 && scan.shelterEntityTitle) {
             return Page.SHELTER_APP_INFO;
         }
     
         if (settingsSubSettings
-                && containsAll(ids, DEVICE_ADMIN_REQUIRED)
+                && containsAll(ids, DEVICE_ADMIN_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
             return Page.DEVICE_ADMIN_APPS;
         }
     
         if (settingsSubSettings
-                && containsAll(ids, ACCESSIBILITY_REQUIRED)
+                && containsAll(ids, ACCESSIBILITY_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
@@ -564,17 +606,17 @@ public final class SystemPageFingerprints {
     public static Set<String> requiredFor(Page page) {
         switch (page) {
             case DEVELOPER_OPTIONS:
-                return DEV_REQUIRED;
+                return DEV_ACCESSIBILITY_REQUIRED;
             case SECURITY_PRIVACY:
-                return SECURITY_REQUIRED;
+                return SECURITY_ACCESSIBILITY_REQUIRED;
             case DEVICE_ADMIN_APPS:
-                return DEVICE_ADMIN_REQUIRED;
+                return DEVICE_ADMIN_ACCESSIBILITY_REQUIRED;
             case ACCESSIBILITY_INSTALLED_APPS:
-                return ACCESSIBILITY_REQUIRED;
+                return ACCESSIBILITY_ACCESSIBILITY_REQUIRED;
             case HIDDEN_APPS:
-                return HIDDEN_APPS_REQUIRED;
+                return HIDDEN_APPS_ACCESSIBILITY_REQUIRED;
             case SHELTER_APP_INFO:
-                return SHELTER_APP_INFO_REQUIRED;
+                return SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED;
             default:
                 return Collections.emptySet();
         }
