@@ -38,10 +38,17 @@ public final class ShelterAccessibilityService extends AccessibilityService {
      * A short bounded retry is used because a window may exist before its
      * complete accessibility tree becomes available. No polling loop is used.
      */
-    private static final long[] ROOT_RETRY_DELAYS_MS = {0L, 50L, 150L};
+    private static final long[] ROOT_RETRY_DELAYS_MS = {0L, 80L, 200L, 500L};
 
     private SystemPageSecurityGuard mSecurityGuard;
     private Handler mHandler;
+
+    // Last real window-state identity. TYPE_WINDOWS_CHANGED may not carry
+    // package/class, so it can reuse the identity of the most recent state
+    // event for the same window.
+    private String mLastPackageName = "";
+    private String mLastClassName = "";
+    private int mLastWindowId = -1;
 
     @Override
     protected void onServiceConnected() {
@@ -66,21 +73,37 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             return;
         }
 
-        if (event.getEventType() != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+        final int eventType = event.getEventType();
+        if (eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                && eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
             return;
         }
 
-        final int eventWindowId = event.getWindowId();
-        if (eventWindowId < 0) {
-            return;
-        }
+        int eventWindowId = event.getWindowId();
+        String packageName = toStringOrEmpty(event.getPackageName());
+        String className = toStringOrEmpty(event.getClassName());
 
-        /*
-         * Copy only immutable identity values. AccessibilityEvent instances
-         * are owned/recycled by Android and must not be retained.
-         */
-        final String packageName = toStringOrEmpty(event.getPackageName());
-        final String className = toStringOrEmpty(event.getClassName());
+        if (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            if (eventWindowId < 0 || packageName.length() == 0 || className.length() == 0) {
+                return;
+            }
+            mLastWindowId = eventWindowId;
+            mLastPackageName = packageName;
+            mLastClassName = className;
+        } else {
+            if (packageName.length() == 0) {
+                packageName = mLastPackageName;
+            }
+            if (className.length() == 0) {
+                className = mLastClassName;
+            }
+            if (eventWindowId < 0) {
+                eventWindowId = mLastWindowId;
+            }
+            if (packageName.length() == 0 || className.length() == 0 || eventWindowId < 0) {
+                return;
+            }
+        }
 
         scheduleDetection(packageName, className, eventWindowId, 0);
     }
@@ -249,6 +272,10 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             mSecurityGuard.destroy();
             mSecurityGuard = null;
         }
+
+        mLastPackageName = "";
+        mLastClassName = "";
+        mLastWindowId = -1;
 
         super.onDestroy();
     }
