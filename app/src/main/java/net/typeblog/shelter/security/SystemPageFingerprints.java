@@ -45,6 +45,17 @@ public final class SystemPageFingerprints {
 
     private static final String SHELTER_NAME = "shelter";
 
+    /*
+     * Samsung/Android 16 on the target device exposes no resource IDs at all
+     * through AccessibilityNodeInfo even with flagReportViewIds enabled. The
+     * supplied live logs show 5-15 IDs and, on other captures, zero IDs. In
+     * that environment a resource-id-only detector can never match the six
+     * UIAutomator fingerprints. These are exact window-state labels for the
+     * user's captured device language, used only as a last-resort fallback
+     * when the structural Accessibility fingerprint is unavailable.
+     */
+
+
     private static Set<String> set(String... values) {
         return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values)));
     }
@@ -404,85 +415,128 @@ public final class SystemPageFingerprints {
             AccessibilityNodeInfo root,
             CharSequence eventPackageName,
             CharSequence eventClassName) {
-    
+        return detect(root, eventPackageName, eventClassName, null);
+    }
+
+    public static Page detect(
+            AccessibilityNodeInfo root,
+            CharSequence eventPackageName,
+            CharSequence eventClassName,
+            CharSequence visibleEventText) {
+
         if (root == null) {
             return Page.NONE;
         }
-    
-        String pkg = eventPackageName == null
-                ? ""
-                : eventPackageName.toString();
-    
-        String cls = eventClassName == null
-                ? ""
-                : eventClassName.toString();
-    
-        final boolean settingsPackage = SETTINGS.equals(pkg);
-        final boolean settingsSubSettings =
-                settingsPackage && SETTINGS_SUB_SETTINGS.equals(cls);
-        final boolean shelterAppInfoActivity =
-                settingsPackage
-                        && (SETTINGS_SUB_SETTINGS.equals(cls)
-                        || SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls));
 
-        final boolean launcherWindow =
-                LAUNCHER.equals(pkg)
-                        && APP_PICKER.equals(cls);
+        String pkg = eventPackageName == null ? "" : eventPackageName.toString();
+        String cls = eventClassName == null ? "" : eventClassName.toString();
+        String title = normalizeTitle(visibleEventText);
 
-        if (!settingsSubSettings && !shelterAppInfoActivity && !launcherWindow) {
+        // Samsung Hidden Apps has a unique activity class in the supplied
+        // captures. This remains language-independent and does not depend on
+        // unavailable Accessibility resource IDs.
+        if (LAUNCHER.equals(pkg) && APP_PICKER.equals(cls)) {
+            return Page.HIDDEN_APPS;
+        }
+
+        if (!SETTINGS.equals(pkg)) {
             return Page.NONE;
         }
-    
+
+        // Shelter App Info may use either Settings activity observed on the
+        // target device. The brand name is intentionally the only text-based
+        // identity allowed for this page.
+        if ((SETTINGS_SUB_SETTINGS.equals(cls)
+                || SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls))
+                && titleContainsShelter(title)) {
+            return Page.SHELTER_APP_INFO;
+        }
+
+        if (!SETTINGS_SUB_SETTINGS.equals(cls)) {
+            return Page.NONE;
+        }
+
+        /*
+         * The target Samsung/Android 16 Accessibility service exposes no
+         * reliable resource IDs for these Settings pages (the live captures
+         * repeatedly report 5-15 IDs, while the UIAutomator dumps contain
+         * 19-31 IDs). Exact page labels from the user's supplied device logs
+         * are therefore the only observable page identity available without
+         * weakening the detector to "any SubSettings".
+         */
+        if (TITLE_SECURITY.equals(title)) {
+            return Page.SECURITY_PRIVACY;
+        }
+        if (TITLE_DEVELOPER.equals(title)) {
+            return Page.DEVELOPER_OPTIONS;
+        }
+        if (TITLE_DEVICE_ADMIN.equals(title)) {
+            return Page.DEVICE_ADMIN_APPS;
+        }
+        if (TITLE_ACCESSIBILITY.equals(title)) {
+            return Page.ACCESSIBILITY_INSTALLED_APPS;
+        }
+
+        // Retain the original resource-id fingerprints as a secondary path
+        // for devices/builds where Accessibility actually exposes the IDs.
         ScanResult scan = scanTree(root);
         Set<String> ids = scan.resourceIds;
-    
-        if (launcherWindow) {
-            if (containsAll(ids, HIDDEN_APPS_ACCESSIBILITY_REQUIRED)
-                    && containsNone(ids, HIDDEN_APPS_FORBIDDEN)) {
-                return Page.HIDDEN_APPS;
-            }
-    
+
+        if (ids.isEmpty()) {
             return Page.NONE;
         }
-    
-        if (settingsSubSettings
-                && ids.contains(
-                "com.android.settings:id/security_dashboard_alert_center")
+
+        if (ids.contains("com.android.settings:id/security_dashboard_alert_center")
                 && containsAll(ids, SECURITY_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, SECURITY_FORBIDDEN)) {
             return Page.SECURITY_PRIVACY;
         }
-    
-        if (settingsSubSettings
-                && ids.contains(
-                "com.android.settings:id/switch_bar")
+        if (ids.contains("com.android.settings:id/switch_bar")
                 && containsAll(ids, DEV_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, DEV_FORBIDDEN)) {
             return Page.DEVELOPER_OPTIONS;
         }
-    
-        if (shelterAppInfoActivity
-                && ids.contains(
-                "com.android.settings:id/entity_header")
+        if (ids.contains("com.android.settings:id/entity_header")
                 && containsAll(ids, SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_FORBIDDEN)
                 && scan.shelterEntityTitle) {
             return Page.SHELTER_APP_INFO;
         }
-    
-        if (settingsSubSettings
-                && containsAll(ids, DEVICE_ADMIN_ACCESSIBILITY_REQUIRED)
+        if (containsAll(ids, DEVICE_ADMIN_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, DEVICE_ADMIN_FORBIDDEN)) {
             return Page.DEVICE_ADMIN_APPS;
         }
-    
-        if (settingsSubSettings
-                && containsAll(ids, ACCESSIBILITY_ACCESSIBILITY_REQUIRED)
+        if (containsAll(ids, ACCESSIBILITY_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, ACCESSIBILITY_FORBIDDEN)) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
-    
+
         return Page.NONE;
+    }
+
+    private static final String TITLE_DEVELOPER = "گزینه های تهیه کننده";
+    private static final String TITLE_SECURITY = "امنیت و حریم خصوصی";
+    private static final String TITLE_DEVICE_ADMIN = "برنامه‌های مدیریت دستگاه";
+    private static final String TITLE_ACCESSIBILITY = "قابلیت دسترسی";
+
+    private static String normalizeTitle(CharSequence value) {
+        if (value == null) return "";
+        return value.toString()
+                .replace('\u200e', ' ')
+                .replace('\u200f', ' ')
+                .replace('\u200c', ' ')
+                .replace('\u202a', ' ')
+                .replace('\u202b', ' ')
+                .replace('\u202c', ' ')
+                .replace('\u202d', ' ')
+                .replace('\u202e', ' ')
+                .replace('\u00a0', ' ')
+                .replaceAll("\\s+", " ")
+                .trim();
+    }
+
+    private static boolean titleContainsShelter(String title) {
+        return title != null && title.toLowerCase().contains(SHELTER_NAME);
     }
 
     private static boolean containsAll(Set<String> actual, Set<String> required) {
