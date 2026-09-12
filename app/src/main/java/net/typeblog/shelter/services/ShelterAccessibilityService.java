@@ -112,7 +112,7 @@ public final class ShelterAccessibilityService extends AccessibilityService {
             CharSequence className) {
         try {
             SystemPageFingerprints.Page page =
-                    SystemPageFingerprints.detect(root, packageName, className, event.getText() == null ? null : event.getText().toString());
+                    SystemPageFingerprints.detect(root, packageName, className);
 
             if (page != SystemPageFingerprints.Page.NONE
                     && mSecurityGuard != null) {
