@@ -1024,7 +1024,7 @@ public class DummyActivity extends SecureActivity {
 
         final int maximumFailedPasswordsForWipe = 5;
         final int passwordHistoryLength = 1;
-        final long maximumTimeToLock = 1L * 60L * 1000L; // 1 minute
+        final long maximumTimeToLock = 1L * 90L * 1000L; // 1.5 minute
         final long passwordExpirationTimeout =
                 30L * 24L * 60L * 60L * 1000L; // 30 days
 
