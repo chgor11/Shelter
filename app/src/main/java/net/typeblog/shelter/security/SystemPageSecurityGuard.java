@@ -78,12 +78,19 @@ public final class SystemPageSecurityGuard {
         final long now = SystemClock.elapsedRealtime();
 
         if (mGraceUntilElapsed > now) {
+            Log.d(TAG, "DIAG_GUARD_DECISION=GRACE_ACTIVE page=" + page
+                    + " remainingMs=" + (mGraceUntilElapsed - now));
             // This is exactly the requested 3-minute grace behavior:
             // repeated Accessibility events/pages do not cause another lock.
             return;
         }
 
-        if (!isMainProfileLockedToThisAdmin()) {
+        boolean adminActive = isMainProfileLockedToThisAdmin();
+        Log.i(TAG, "DIAG_GUARD_PRELOCK page=" + page
+                + " adminActive=" + adminActive
+                + " managedProfile=" + isManagedProfile());
+
+        if (!adminActive) {
             Log.w(TAG,
                     "Ignoring protected-page report because main-profile "
                             + "Device Admin is not active: " + page);
@@ -98,9 +105,11 @@ public final class SystemPageSecurityGuard {
         final long lockStart = SystemClock.elapsedRealtime();
 
         try {
+            Log.i(TAG, "DIAG_LOCKNOW_ENTER page=" + page);
             Log.i(TAG, "Protected page detected: " + page
                     + "; executing main-profile lockNow()");
             mDpm.lockNow();
+            Log.i(TAG, "DIAG_LOCKNOW_RETURNED_NORMALLY page=" + page);
         } catch (SecurityException e) {
             /*
              * Fail closed: if lockNow() is rejected, do NOT open a 3-minute
@@ -126,17 +135,26 @@ public final class SystemPageSecurityGuard {
                         + "; remainingMs=" + GRACE_PERIOD_MS);
     }
 
+    private boolean isManagedProfile() {
+        UserManager userManager = mContext.getSystemService(UserManager.class);
+        return userManager != null && userManager.isManagedProfile();
+    }
+
     private boolean isMainProfileLockedToThisAdmin() {
         if (mDpm == null) {
+            Log.w(TAG, "DIAG_ADMIN_CHECK dpm=NULL");
             return false;
         }
 
-        UserManager userManager = mContext.getSystemService(UserManager.class);
-        if (userManager != null && userManager.isManagedProfile()) {
+        if (isManagedProfile()) {
+            Log.w(TAG, "DIAG_ADMIN_CHECK managedProfile=true");
             return false;
         }
 
-        return mDpm.isAdminActive(mAdmin);
+        boolean active = mDpm.isAdminActive(mAdmin);
+        Log.i(TAG, "DIAG_ADMIN_CHECK managedProfile=false adminActive=" + active
+                + " admin=" + mAdmin.flattenToShortString());
+        return active;
     }
 
     private long remainingGraceMsLocked() {
