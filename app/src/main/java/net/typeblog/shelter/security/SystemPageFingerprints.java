@@ -84,37 +84,7 @@ public final class SystemPageFingerprints {
     /* ----------------------------- Security & privacy ----------------------------- */
 
     private static final Set<String> SECURITY_REQUIRED = set(
-            "com.android.settings:id/action_bar_root",
-            "android:id/content",
-            "com.android.settings:id/included_window_inset",
-            "com.android.settings:id/content_parent",
-            "com.android.settings:id/coordinator",
-            "com.android.settings:id/app_bar",
-            "com.android.settings:id/collapsing_app_bar",
-            "com.android.settings:id/collapsing_appbar_title_layout_parent",
-            "com.android.settings:id/collapsing_appbar_title_layout",
-            "com.android.settings:id/collapsing_appbar_extended_title",
-            "com.android.settings:id/action_bar",
-            "com.android.settings:id/content_layout",
-            "com.android.settings:id/content_frame",
-            "com.android.settings:id/main_content",
-            "com.android.settings:id/container_material",
-            "android:id/list_container",
-            "com.android.settings:id/recycler_view",
-            "com.android.settings:id/security_dashboard_alert_center",
-            "com.android.settings:id/status_icon_bg_new",
-            "com.android.settings:id/tv_status_suggestion",
-            "com.android.settings:id/tv_status_suggestion_desc",
-            "com.android.settings:id/icon_frame",
-            "android:id/icon",
-            "com.android.settings:id/title_frame",
-            "android:id/title",
-            "android:id/summary",
-            "com.android.settings:id/icon_status_frame",
-            "com.android.settings:id/icon_status",
-            "com.android.settings:id/divider",
-            "com.android.settings:id/round_corner",
-            "android:id/navigationBarBackground"
+            "com.android.settings:id/security_dashboard_alert_center"
     );
 
     /* ----------------------------- Device admin apps ----------------------------- */
@@ -304,22 +274,6 @@ public final class SystemPageFingerprints {
     );
 
     private static final Set<String> SECURITY_FORBIDDEN = set(
-            "com.android.settings:id/switch_bar",
-            "com.android.settings:id/sesl_switchbar_container",
-            "com.android.settings:id/sesl_switchbar_text",
-            "com.android.settings:id/sesl_switchbar_switch",
-            "com.android.settings:id/widget_frame",
-            "com.android.settings:id/switch_widget",
-            "com.android.settings:id/entity_header",
-            "com.android.settings:id/entity_header_icon",
-            "com.android.settings:id/entity_header_summary",
-            "com.android.settings:id/entity_header_title",
-            "com.android.settings:id/bottom_bar",
-            "com.android.settings:id/button1",
-            "com.android.settings:id/button3",
-            "com.android.settings:id/button4",
-            "com.android.settings:id/button_bar",
-            "com.android.settings:id/sesl_action_bar_overflow_button",
             "com.sec.android.app.launcher:id/apps_picker_container",
             "com.sec.android.app.launcher:id/root_app_picker_container"
     );
