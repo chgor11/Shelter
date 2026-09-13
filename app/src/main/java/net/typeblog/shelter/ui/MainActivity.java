@@ -121,7 +121,6 @@ public class MainActivity extends SecureActivity {
         }
 
         if (getSystemService(DevicePolicyManager.class).isProfileOwnerApp(getPackageName())) {
-            android.util.Log.d("MainActivity", "started in user profile. stopping.");
             finish();
         } else if (ACTION_FREEZE_ALL_SHORTCUT.equals(getIntent().getAction())) {
             launchSignedPublicFreezeAll();
