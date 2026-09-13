@@ -78,22 +78,14 @@ public final class SystemPageSecurityGuard {
         final long now = SystemClock.elapsedRealtime();
 
         if (mGraceUntilElapsed > now) {
-            Log.d(TAG, "DIAG_GUARD_DECISION=GRACE_ACTIVE page=" + page
-                    + " remainingMs=" + (mGraceUntilElapsed - now));
             // This is exactly the requested 3-minute grace behavior:
             // repeated Accessibility events/pages do not cause another lock.
             return;
         }
 
         boolean adminActive = isMainProfileLockedToThisAdmin();
-        Log.i(TAG, "DIAG_GUARD_PRELOCK page=" + page
-                + " adminActive=" + adminActive
-                + " managedProfile=" + isManagedProfile());
 
         if (!adminActive) {
-            Log.w(TAG,
-                    "Ignoring protected-page report because main-profile "
-                            + "Device Admin is not active: " + page);
             return;
         }
 
@@ -105,34 +97,20 @@ public final class SystemPageSecurityGuard {
         final long lockStart = SystemClock.elapsedRealtime();
 
         try {
-            Log.i(TAG, "DIAG_LOCKNOW_ENTER page=" + page);
-            Log.i(TAG, "Protected page detected: " + page
-                    + "; executing main-profile lockNow()");
             mDpm.lockNow();
-            Log.i(TAG, "DIAG_LOCKNOW_RETURNED_NORMALLY page=" + page);
         } catch (SecurityException e) {
             /*
              * Fail closed: if lockNow() is rejected, do NOT open a 3-minute
              * grace window, because doing so would turn a failed lock into an
              * authentication bypass.
              */
-            Log.e(TAG,
-                    "lockNow() rejected; grace period NOT started; page=" + page,
-                    e);
             return;
         } catch (RuntimeException e) {
-            Log.e(TAG,
-                    "lockNow() failed; grace period NOT started; page=" + page,
-                    e);
             return;
         }
 
         mGraceUntilElapsed = lockStart + GRACE_PERIOD_MS;
         scheduleExpiryLocked(mGraceUntilElapsed);
-
-        Log.i(TAG,
-                "3-minute monotonic grace period started for " + page
-                        + "; remainingMs=" + GRACE_PERIOD_MS);
     }
 
     private boolean isManagedProfile() {
@@ -142,18 +120,14 @@ public final class SystemPageSecurityGuard {
 
     private boolean isMainProfileLockedToThisAdmin() {
         if (mDpm == null) {
-            Log.w(TAG, "DIAG_ADMIN_CHECK dpm=NULL");
             return false;
         }
 
         if (isManagedProfile()) {
-            Log.w(TAG, "DIAG_ADMIN_CHECK managedProfile=true");
             return false;
         }
 
         boolean active = mDpm.isAdminActive(mAdmin);
-        Log.i(TAG, "DIAG_ADMIN_CHECK managedProfile=false adminActive=" + active
-                + " admin=" + mAdmin.flattenToShortString());
         return active;
     }
 
@@ -191,7 +165,6 @@ public final class SystemPageSecurityGuard {
                             && SystemClock.elapsedRealtime() >= deadlineElapsed) {
                         mGraceUntilElapsed = 0L;
                         mExpiryRunnable = null;
-                        Log.i(TAG, "3-minute grace period expired");
                     }
                 }
             }
