@@ -92,7 +92,7 @@ public class WorkProfileSecurityService extends DeviceAdminService {
     private void checkCurrentLockStateOnce() {
         if (mPolicyManager == null ||
                 !mPolicyManager.isProfileOwnerApp(getPackageName())) {
-            Log.w(TAG, "Startup check skipped: not Profile Owner");
+            // ignore
             return;
         }
 
@@ -100,13 +100,13 @@ public class WorkProfileSecurityService extends DeviceAdminService {
                 getSystemService(KeyguardManager.class);
 
         if (keyguardManager == null) {
-            Log.w(TAG, "Startup check skipped: KeyguardManager unavailable");
+            // ignore
             return;
         }
 
         boolean locked = keyguardManager.isDeviceLocked();
 
-        Log.i(TAG, "Startup lock-state check: isDeviceLocked=" + locked);
+        // ignore
 
         if (locked) {
             secureWorkProfile("STARTUP_LOCK_STATE");
@@ -115,13 +115,11 @@ public class WorkProfileSecurityService extends DeviceAdminService {
 
     private void secureWorkProfile(String reason) {
         if (mSecurityOperationRunning) {
-            Log.i(TAG, "Security operation already running; ignoring reason=" + reason);
             return;
         }
 
         if (mPolicyManager == null ||
                 !mPolicyManager.isProfileOwnerApp(getPackageName())) {
-            Log.w(TAG, "Security operation skipped: not Profile Owner; reason=" + reason);
             return;
         }
 
@@ -140,7 +138,6 @@ public class WorkProfileSecurityService extends DeviceAdminService {
             DevicePolicyManager parentDpm =
                     mPolicyManager.getParentProfileInstance(mAdminComponent);
 
-            Log.i(TAG, "Locking parent first; reason=" + reason);
             parentDpm.lockNow();
 
             /*
@@ -151,26 +148,18 @@ public class WorkProfileSecurityService extends DeviceAdminService {
                     mPolicyManager.getStorageEncryptionStatus();
 
             if (encryptionStatus != DevicePolicyManager.ENCRYPTION_STATUS_ACTIVE_PER_USER) {
-                Log.w(
-                        TAG,
-                        "Work Profile key eviction skipped: encryption status="
-                                + encryptionStatus
-                                + "; reason=" + reason
-                );
                 return;
             }
 
-            Log.i(TAG, "Evicting Work Profile credential key; reason=" + reason);
 
             mPolicyManager.lockNow(
                     DevicePolicyManager.FLAG_EVICT_CREDENTIAL_ENCRYPTION_KEY
             );
 
-            Log.i(TAG, "Work Profile credential key eviction requested successfully");
         } catch (SecurityException e) {
-            Log.e(TAG, "Work Profile security operation rejected; reason=" + reason, e);
+            // ignore
         } catch (RuntimeException e) {
-            Log.e(TAG, "Work Profile security operation failed; reason=" + reason, e);
+            // ignore
         } finally {
             mSecurityOperationRunning = false;
         }
