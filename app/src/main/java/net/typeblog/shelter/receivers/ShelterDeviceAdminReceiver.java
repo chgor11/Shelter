@@ -78,11 +78,7 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
                     securityIntent
             );
         } catch (Exception e) {
-            android.util.Log.e(
-                    "ShelterDeviceAdmin",
-                    "Failed to request Work Profile security response",
-                    e
-            );
+            // ignore
         }
     
         // The Device Admin in the current (Parent) profile
@@ -101,17 +97,9 @@ public class ShelterDeviceAdminReceiver extends DeviceAdminReceiver {
         if (dpm != null) {
             try {
                 dpm.lockNow();
-    
-                android.util.Log.i(
-                        "ShelterDeviceAdmin",
-                        "Parent lockNow() executed"
-                );
+
             } catch (SecurityException e) {
-                android.util.Log.e(
-                        "ShelterDeviceAdmin",
-                        "Parent lockNow() failed",
-                        e
-                );
+                // ignore
             }
         }
     
