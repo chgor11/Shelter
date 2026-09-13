@@ -701,17 +701,8 @@ public class Utility {
                         keyguardFlags
                 );
     
-                android.util.Log.i(
-                        "ShelterParentPolicy",
-                        "Parent keyguard policies applied"
-                );
-    
             } catch (SecurityException e) {
-                android.util.Log.e(
-                        "ShelterParentPolicy",
-                        "Unable to apply Parent keyguard policies",
-                        e
-                );
+                // ignore
             }
         }
     }
@@ -752,11 +743,7 @@ public class Utility {
             );
     
         } catch (SecurityException e) {
-            android.util.Log.e(
-                    "ShelterParentPolicy",
-                    "Failed to reset keyguard policy",
-                    e
-            );
+            // ignore
         }
     }
 
