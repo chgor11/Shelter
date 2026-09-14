@@ -1,10 +1,12 @@
 package net.typeblog.shelter.security;
 
+import android.os.LocaleList;
 import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -15,13 +17,16 @@ import java.util.Set;
  *  - Every FORBIDDEN resource-id must be absent.
  *  - Package/class are checked as hard conditions. Shelter App Info accepts
  *    the two Settings activity classes observed for that page on Android 16.
- *  - No localized page title is used.
- *  - The Shelter App Info fingerprint additionally requires the application
- *    identity "Shelter"; this is not a localized page title.
- *  - Matching is deterministic: there is no scoring or fuzzy matching.
+ *  - Complete fingerprints do not depend on localized page titles.
+ *  - An About Phone title is considered only as a final exception after a
+ *    page has already become a protected-page candidate.
+ *  - Incomplete Accessibility trees use a language-aware fallback:
+ *      * system language other than Persian/English -> lock
+ *      * Persian/English -> compare event/page title
+ *      * exact About Phone title -> do not lock
+ *      * otherwise -> lock
  *
- * The structural fingerprints below are based on the supplied Android 16 /
- * Samsung accessibility captures.
+ * Matching is deterministic. There is no scoring.
  */
 public final class SystemPageFingerprints {
 
@@ -36,7 +41,8 @@ public final class SystemPageFingerprints {
     }
 
     private static final String SETTINGS = "com.android.settings";
-    private static final String SETTINGS_SUB_SETTINGS = "com.android.settings.SubSettings";
+    private static final String SETTINGS_SUB_SETTINGS =
+            "com.android.settings.SubSettings";
     private static final String SETTINGS_INSTALLED_APP_DETAILS_TOP =
             "com.android.settings.applications.InstalledAppDetailsTop";
 
@@ -46,9 +52,82 @@ public final class SystemPageFingerprints {
 
     private static final String SHELTER_NAME = "shelter";
 
+    /*
+     * ============================================================
+     * INCOMPLETE-PAGE TITLE FALLBACK
+     * ============================================================
+     *
+     * These titles are used ONLY when the normal structural
+     * fingerprint is incomplete.
+     *
+     * They do NOT participate in the normal language-independent
+     * fingerprint matching.
+     *
+     * Keep both Persian and English forms here.
+     */
+
+    private static final Set<String> DEVELOPER_OPTIONS_TITLES = set(
+            "Developer options",
+            "گزینه‌های برنامه‌نویس"
+    );
+
+    private static final Set<String> SECURITY_PRIVACY_TITLES = set(
+            "Security and privacy",
+            "Security & privacy",
+            "امنیت و حریم خصوصی"
+    );
+
+    private static final Set<String> DEVICE_ADMIN_APPS_TITLES = set(
+            "Device admin apps",
+            "Device administrators",
+            "مدیران دستگاه",
+            "برنامه‌های مدیریت دستگاه"
+    );
+
+    private static final Set<String> ACCESSIBILITY_INSTALLED_APPS_TITLES = set(
+            "Installed apps",
+            "Accessibility installed apps",
+            "برنامه‌های نصب‌شده",
+            "برنامه‌های نصب شده"
+    );
+
+    private static final Set<String> HIDDEN_APPS_TITLES = set(
+            "Hidden apps",
+            "برنامه‌های مخفی"
+    );
+
+    private static final Set<String> SHELTER_APP_INFO_TITLES = set(
+            "Shelter",
+            "شلتر"
+    );
+
+    /*
+     * ============================================================
+     * ABOUT PHONE EXCEPTION
+     * ============================================================
+     *
+     * IMPORTANT:
+     *
+     * About Phone is NOT a protected page.
+     *
+     * It is checked ONLY AFTER another part of the detector has
+     * already classified the current page as a protected-page
+     * candidate.
+     *
+     * No resource-id is required.
+     *
+     * The exception is active only when the current SYSTEM language
+     * is Persian or English.
+     */
+    private static final Set<String> ABOUT_PHONE_TITLES = set(
+            "About Phone",
+            "درباره تلفن"
+    );
 
     private static Set<String> set(String... values) {
-        return Collections.unmodifiableSet(new HashSet<>(Arrays.asList(values)));
+        return Collections.unmodifiableSet(
+                new HashSet<>(Arrays.asList(values))
+        );
     }
 
     /* ----------------------------- Developer options ----------------------------- */
@@ -85,6 +164,16 @@ public final class SystemPageFingerprints {
 
     private static final Set<String> SECURITY_REQUIRED = set(
             "com.android.settings:id/security_dashboard_alert_center"
+    );
+
+    /*
+     * Secondary Security & Privacy structural fingerprint.
+     * This is an additional route/fingerprint and does not replace
+     * SECURITY_REQUIRED.
+     */
+    private static final Set<String> SECURITY_SECONDARY_REQUIRED = set(
+            "com.android.settings:id/security_dashboard_alert_center",
+            "com.android.settings:id/recycler_view"
     );
 
     /* ----------------------------- Device admin apps ----------------------------- */
@@ -183,12 +272,6 @@ public final class SystemPageFingerprints {
 
     /*
      * Accessibility exposes a different tree from UIAutomator/uiautomator dump.
-     * The original capture contains many layout/container IDs that are not
-     * guaranteed to be exposed by AccessibilityNodeInfo. Requiring every one
-     * therefore makes a real page impossible to recognize (the live service was
-     * seeing only 6-15 IDs). These are the stable, page-specific IDs that must
-     * be observable in the Accessibility tree. They are still ANDed; this is
-     * not scoring and IDs from different windows are never combined.
      */
     private static final Set<String> DEV_ACCESSIBILITY_REQUIRED = set(
             "com.android.settings:id/switch_bar",
@@ -225,6 +308,13 @@ public final class SystemPageFingerprints {
             "android:id/title"
     );
 
+    private static final Set<String> SHELTER_APP_INFO_SECONDARY_REQUIRED = set(
+            "com.android.settings:id/sesl_switchbar_container",
+            "com.android.settings:id/sesl_switchbar_switch",
+            "com.android.settings:id/recycler_view",
+            "android:id/title"
+    );
+
     private static final Set<String> SHELTER_APP_INFO_INSTALLED_FORBIDDEN = set(
             "com.android.settings:id/security_dashboard_alert_center",
             "com.android.settings:id/switch_bar",
@@ -243,11 +333,6 @@ public final class SystemPageFingerprints {
             "com.android.settings:id/entity_header"
     );
 
-    /**
-     * These are the target-page IDs that must NOT be present in a competing
-     * fingerprint. They are deliberately kept explicit rather than inferred
-     * at runtime, so the detector remains deterministic.
-     */
     private static final Set<String> DEV_FORBIDDEN = set(
             "com.android.settings:id/security_dashboard_alert_center",
             "com.android.settings:id/status_icon_bg_new",
@@ -369,26 +454,26 @@ public final class SystemPageFingerprints {
     }
 
     /**
-     * Detects a page from an Accessibility root node and the AccessibilityEvent
-     * identity. All required conditions are ANDed; all forbidden conditions
-     * are also mandatory NOT conditions.
+     * Original 3-argument API.
      */
     public static Page detect(
             AccessibilityNodeInfo root,
             CharSequence eventPackageName,
             CharSequence eventClassName) {
+
         return detect(root, eventPackageName, eventClassName, null);
     }
 
     /**
-     * Language-independent page detector.
+     * Main detector.
      *
-     * IMPORTANT: visibleEventText is intentionally ignored.  No localized
-     * page title is used for any security decision.
+     * The complete structural fingerprints are evaluated first.
      *
-     * The detector first uses the package/activity identity and then a small,
-     * deterministic structural/resource-id fingerprint.  It does not use
-     * scoring or OR-style fuzzy matching.
+     * If one of the six protected pages is confidently identified,
+     * About Phone is checked as the final exception.
+     *
+     * If the tree is incomplete, the language-aware fallback may be
+     * used for a suspicious Settings/SubSettings page.
      */
     public static Page detect(
             AccessibilityNodeInfo root,
@@ -400,10 +485,19 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
 
-        String pkg = eventPackageName == null ? "" : eventPackageName.toString();
-        String cls = eventClassName == null ? "" : eventClassName.toString();
+        String pkg = eventPackageName == null
+                ? ""
+                : eventPackageName.toString();
 
-        // Samsung Hidden Apps: unique activity identity; language-independent.
+        String cls = eventClassName == null
+                ? ""
+                : eventClassName.toString();
+
+        /*
+         * Samsung Hidden Apps.
+         *
+         * Activity identity itself is sufficiently distinctive.
+         */
         if (LAUNCHER.equals(pkg) && APP_PICKER.equals(cls)) {
             return Page.HIDDEN_APPS;
         }
@@ -412,42 +506,55 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
 
-        /*
-         * Shelter App Info has two observed Settings representations:
-         *  1) InstalledAppDetailsTop with the entity-header structure;
-         *  2) SubSettings with the Settings switch-bar structure and the
-         *     application identity exposed in the accessibility tree.
-         *
-         * The application name "Shelter" is an application identity, not a
-         * localized page title, so it is deliberately retained as the only
-         * text check in this detector.
-         */
         ScanResult scan = scanTree(root);
         Set<String> ids = scan.resourceIds;
 
+        /*
+         * ------------------------------------------------------------
+         * Shelter App Info - InstalledAppDetailsTop
+         * ------------------------------------------------------------
+         */
         if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)
                 && containsAll(ids, SHELTER_APP_INFO_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_INSTALLED_FORBIDDEN)
                 && scan.shelterEntityTitle) {
-            return Page.SHELTER_APP_INFO;
+
+            return applyAboutPhoneException(
+                    Page.SHELTER_APP_INFO,
+                    root,
+                    visibleEventText
+            );
         }
 
+        /*
+         * ------------------------------------------------------------
+         * Shelter App Info - SubSettings
+         * ------------------------------------------------------------
+         */
         if (SETTINGS_SUB_SETTINGS.equals(cls)
                 && scan.shelterEntityTitle
                 && containsAll(ids, SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED)
                 && containsNone(ids, SHELTER_APP_INFO_SUBSETTINGS_FORBIDDEN)) {
-            return Page.SHELTER_APP_INFO;
+
+            return applyAboutPhoneException(
+                    Page.SHELTER_APP_INFO,
+                    root,
+                    visibleEventText
+            );
         }
 
+        /*
+         * A non-SubSettings Settings activity cannot be one of the
+         * ordinary protected Settings pages below.
+         */
         if (!SETTINGS_SUB_SETTINGS.equals(cls)) {
             return Page.NONE;
         }
 
         /*
-         * Developer options.
-         * The Samsung switch-bar IDs are distinctive and are present in the
-         * observed Developer-options accessibility tree.  A generic Android
-         * switch widget is NOT sufficient because other Settings pages use it.
+         * ------------------------------------------------------------
+         * Developer options
+         * ------------------------------------------------------------
          */
         if (containsAll(ids, set(
                 "com.android.settings:id/sesl_switchbar_container",
@@ -456,13 +563,18 @@ public final class SystemPageFingerprints {
                 "com.android.settings:id/security_dashboard_alert_center",
                 "com.android.settings:id/entity_header",
                 "com.android.settings:id/bottom_bar"))) {
-            return Page.DEVELOPER_OPTIONS;
+
+            return applyAboutPhoneException(
+                    Page.DEVELOPER_OPTIONS,
+                    root,
+                    visibleEventText
+            );
         }
 
         /*
-         * Security & privacy.
-         * These four Samsung Settings IDs were observed together on the
-         * target Security & privacy page.  They are structural IDs, not text.
+         * ------------------------------------------------------------
+         * Security & privacy - primary structural fingerprint
+         * ------------------------------------------------------------
          */
         if (containsAll(ids, set(
                 "com.android.settings:id/microphone_label",
@@ -473,15 +585,36 @@ public final class SystemPageFingerprints {
                 "com.android.settings:id/entity_header",
                 "com.android.settings:id/sesl_switchbar_container",
                 "com.android.settings:id/sesl_switchbar_switch"))) {
-            return Page.SECURITY_PRIVACY;
+
+            return applyAboutPhoneException(
+                    Page.SECURITY_PRIVACY,
+                    root,
+                    visibleEventText
+            );
         }
 
         /*
-         * Device admin apps.
-         * On the observed Android 16/Samsung build this page exposes the
-         * common Settings list skeleton but no summary node and no switch
-         * widget.  The absence conditions are mandatory so that the nearby
-         * Accessibility-installed-apps and More-security pages do not match.
+         * ------------------------------------------------------------
+         * Security & privacy - secondary fingerprint
+         * ------------------------------------------------------------
+         *
+         * This is intentionally checked in addition to the original
+         * Security fingerprint.
+         */
+        if (containsAll(ids, SECURITY_SECONDARY_REQUIRED)
+                && containsNone(ids, SECURITY_FORBIDDEN)) {
+
+            return applyAboutPhoneException(
+                    Page.SECURITY_PRIVACY,
+                    root,
+                    visibleEventText
+            );
+        }
+
+        /*
+         * ------------------------------------------------------------
+         * Device admin apps
+         * ------------------------------------------------------------
          */
         if (containsAll(ids, set(
                 "com.android.settings:id/action_bar",
@@ -497,14 +630,18 @@ public final class SystemPageFingerprints {
                 "com.android.settings:id/sesl_switchbar_switch",
                 "com.android.settings:id/security_dashboard_alert_center",
                 "com.android.settings:id/entity_header"))) {
-            return Page.DEVICE_ADMIN_APPS;
+
+            return applyAboutPhoneException(
+                    Page.DEVICE_ADMIN_APPS,
+                    root,
+                    visibleEventText
+            );
         }
 
         /*
-         * Accessibility -> Installed apps.
-         * It has the same list skeleton as Device admin apps, but the observed
-         * Accessibility page exposes android:id/summary.  A switch widget or
-         * the Security-page IDs disqualify it.
+         * ------------------------------------------------------------
+         * Accessibility -> Installed apps
+         * ------------------------------------------------------------
          */
         if (containsAll(ids, set(
                 "com.android.settings:id/action_bar",
@@ -520,41 +657,338 @@ public final class SystemPageFingerprints {
                 "com.android.settings:id/sesl_switchbar_switch",
                 "com.android.settings:id/security_dashboard_alert_center",
                 "com.android.settings:id/entity_header"))) {
+
+            return applyAboutPhoneException(
+                    Page.ACCESSIBILITY_INSTALLED_APPS,
+                    root,
+                    visibleEventText
+            );
+        }
+
+        /*
+         * ------------------------------------------------------------
+         * Incomplete Accessibility tree fallback
+         * ------------------------------------------------------------
+         *
+         * At this point no complete structural fingerprint matched.
+         *
+         * We only use the fallback for a Settings/SubSettings page.
+         *
+         * System language:
+         *
+         *   Persian / English:
+         *       title/eventText is checked.
+         *
+         *   Anything else:
+         *       suspicious incomplete page is treated as protected
+         *       and the caller receives a protected Page result.
+         *
+         * IMPORTANT:
+         * About Phone exception is applied here too.
+         */
+        return detectIncompleteSettingsPage(
+                root,
+                cls,
+                visibleEventText
+        );
+    }
+
+    /**
+     * Handles an incomplete Settings/SubSettings tree.
+     */
+    private static Page detectIncompleteSettingsPage(
+            AccessibilityNodeInfo root,
+            String cls,
+            CharSequence visibleEventText) {
+
+        if (!SETTINGS_SUB_SETTINGS.equals(cls)) {
+            return Page.NONE;
+        }
+
+        /*
+         * We need some indication that this is actually a suspicious
+         * incomplete Settings page rather than an arbitrary empty tree.
+         *
+         * These are generic structural markers already observed in the
+         * supplied Android 16 captures.
+         */
+        ScanResult scan = scanTree(root);
+        Set<String> ids = scan.resourceIds;
+
+        boolean suspiciousSettingsStructure =
+                ids.contains("com.android.settings:id/action_bar")
+                        || ids.contains(
+                        "com.android.settings:id/collapsing_appbar_extended_title")
+                        || ids.contains(
+                        "com.android.settings:id/recycler_view")
+                        || ids.contains("com.android.settings:id/coordinator")
+                        || ids.contains("android:id/title")
+                        || ids.contains("android:id/summary");
+
+        if (!suspiciousSettingsStructure) {
+            return Page.NONE;
+        }
+
+        /*
+         * First determine the current SYSTEM language.
+         */
+        String language = getSystemLanguage();
+
+        /*
+         * Any language other than Persian or English:
+         *
+         * The incomplete protected-page case is fail-closed.
+         *
+         * The returned enum is only used as the "protected candidate"
+         * signal by the caller; it does not claim that the exact page
+         * was structurally identified as Security & privacy.
+         */
+        if (!isPersianOrEnglish(language)) {
+            return Page.SECURITY_PRIVACY;
+        }
+
+        /*
+         * Persian or English:
+         *
+         * First check the explicit About Phone exception.
+         *
+         * If it is About Phone, return NONE.
+         */
+        if (matchesAboutPhoneTitle(root, visibleEventText)) {
+            return Page.NONE;
+        }
+
+        /*
+         * Otherwise identify the incomplete page by its localized
+         * title/event text.
+         */
+        String title = normalizedTitle(visibleEventText);
+
+        if (matchesAny(title, DEVELOPER_OPTIONS_TITLES)) {
+            return Page.DEVELOPER_OPTIONS;
+        }
+
+        if (matchesAny(title, SECURITY_PRIVACY_TITLES)) {
+            return Page.SECURITY_PRIVACY;
+        }
+
+        if (matchesAny(title, DEVICE_ADMIN_APPS_TITLES)) {
+            return Page.DEVICE_ADMIN_APPS;
+        }
+
+        if (matchesAny(title, ACCESSIBILITY_INSTALLED_APPS_TITLES)) {
             return Page.ACCESSIBILITY_INSTALLED_APPS;
         }
 
-        // visibleEventText is deliberately not consulted.
+        if (matchesAny(title, HIDDEN_APPS_TITLES)) {
+            return Page.HIDDEN_APPS;
+        }
+
+        if (matchesAny(title, SHELTER_APP_INFO_TITLES)) {
+            return Page.SHELTER_APP_INFO;
+        }
+
+        /*
+         * Persian/English but no protected-page title:
+         * do NOT lock.
+         */
         return Page.NONE;
     }
 
-    private static boolean containsAll(Set<String> actual, Set<String> required) {
+    /**
+     * Final About Phone exception.
+     *
+     * This method is called ONLY after another detector has already
+     * classified the current page as one of the protected pages.
+     *
+     * If the system language is not Persian or English, About Phone
+     * does NOT create an exception and the protected page remains
+     * protected.
+     */
+    private static Page applyAboutPhoneException(
+            Page protectedPage,
+            AccessibilityNodeInfo root,
+            CharSequence visibleEventText) {
+
+        if (protectedPage == Page.NONE) {
+            return Page.NONE;
+        }
+
+        String language = getSystemLanguage();
+
+        /*
+         * Non-Persian / non-English:
+         * About Phone exception is disabled.
+         */
+        if (!isPersianOrEnglish(language)) {
+            return protectedPage;
+        }
+
+        /*
+         * Persian / English:
+         * exact About Phone title/event text is the exception.
+         */
+        if (matchesAboutPhoneTitle(root, visibleEventText)) {
+            return Page.NONE;
+        }
+
+        /*
+         * It was already identified as a protected page and it is
+         * not About Phone.
+         */
+        return protectedPage;
+    }
+
+    /**
+     * Returns the first system locale language.
+     *
+     * LocaleList.getDefault() represents the device/system locale list.
+     */
+    private static String getSystemLanguage() {
+        LocaleList locales = LocaleList.getDefault();
+
+        if (locales == null || locales.isEmpty()) {
+            return "";
+        }
+
+        Locale locale = locales.get(0);
+
+        if (locale == null) {
+            return "";
+        }
+
+        return locale.getLanguage().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isPersianOrEnglish(String language) {
+        return "fa".equals(language) || "en".equals(language);
+    }
+
+    /**
+     * Checks eventText first, then searches node text for an exact
+     * About Phone title.
+     *
+     * Resource IDs are deliberately NOT used here.
+     */
+    private static boolean matchesAboutPhoneTitle(
+            AccessibilityNodeInfo root,
+            CharSequence visibleEventText) {
+
+        String eventTitle = normalizedTitle(visibleEventText);
+
+        if (ABOUT_PHONE_TITLES.contains(eventTitle)) {
+            return true;
+        }
+
+        return containsAboutPhoneTitleInTree(root);
+    }
+
+    private static boolean containsAboutPhoneTitleInTree(
+            AccessibilityNodeInfo node) {
+
+        if (node == null) {
+            return false;
+        }
+
+        if (matchesAboutPhoneValue(node.getText())) {
+            return true;
+        }
+
+        if (matchesAboutPhoneValue(node.getContentDescription())) {
+            return true;
+        }
+
+        final int childCount = node.getChildCount();
+
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                if (containsAboutPhoneTitleInTree(child)) {
+                    return true;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean matchesAboutPhoneValue(CharSequence value) {
+        if (value == null) {
+            return false;
+        }
+
+        String normalized = normalizedTitle(value);
+        return ABOUT_PHONE_TITLES.contains(normalized);
+    }
+
+    /**
+     * Normalizes only surrounding whitespace.
+     *
+     * No fuzzy matching is performed.
+     */
+    private static String normalizedTitle(CharSequence value) {
+        if (value == null) {
+            return "";
+        }
+
+        return value.toString().trim();
+    }
+
+    private static boolean matchesAny(
+            String value,
+            Set<String> candidates) {
+
+        if (value == null || value.isEmpty()) {
+            return false;
+        }
+
+        return candidates.contains(value);
+    }
+
+    private static boolean containsAll(
+            Set<String> actual,
+            Set<String> required) {
+
         return actual.containsAll(required);
     }
 
-    private static boolean containsNone(Set<String> actual, Set<String> forbidden) {
+    private static boolean containsNone(
+            Set<String> actual,
+            Set<String> forbidden) {
+
         for (String id : forbidden) {
             if (actual.contains(id)) {
                 return false;
             }
         }
+
         return true;
     }
 
     /**
      * Internal production scan.
-     *
-     * Performs exactly one traversal of the Accessibility tree and collects
-     * both resource IDs and the narrowly-scoped Shelter identity used by the
-     * App Info fingerprint.
      */
     private static final class ScanResult {
+
         final Set<String> resourceIds = new HashSet<>();
+
         boolean shelterEntityTitle;
     }
 
-    private static ScanResult scanTree(AccessibilityNodeInfo root) {
+    private static ScanResult scanTree(
+            AccessibilityNodeInfo root) {
+
         ScanResult result = new ScanResult();
+
         scanTreeRecursive(root, result);
+
         return result;
     }
 
@@ -569,21 +1003,31 @@ public final class SystemPageFingerprints {
         CharSequence id = node.getViewIdResourceName();
 
         if (id != null && id.length() != 0) {
+
             String resourceId = id.toString();
+
             result.resourceIds.add(resourceId);
 
-            // Do not use event.getText(), arbitrary node text, or content
-            // descriptions for page identity. Only the exact Settings
-            // entity_header_title node may establish the Shelter identity.
-            if ("com.android.settings:id/entity_header_title".equals(resourceId)
-                    && containsIgnoreCase(node.getText(), SHELTER_NAME)) {
+            /*
+             * Only the exact Settings entity_header_title node can
+             * establish the Shelter application identity.
+             */
+            if ("com.android.settings:id/entity_header_title"
+                    .equals(resourceId)
+                    && containsIgnoreCase(
+                    node.getText(),
+                    SHELTER_NAME)) {
+
                 result.shelterEntityTitle = true;
             }
         }
 
         final int childCount = node.getChildCount();
+
         for (int i = 0; i < childCount; i++) {
+
             AccessibilityNodeInfo child = node.getChild(i);
+
             if (child == null) {
                 continue;
             }
@@ -597,15 +1041,15 @@ public final class SystemPageFingerprints {
     }
 
     /**
-     * Recursively collects every non-empty Accessibility resource-id.
-     *
-     * Kept as a separate public helper for existing diagnostic callers.
-     * It intentionally retains its original Set<String> API so callers are
-     * not broken by the production detector's internal ScanResult.
+     * Existing public helper retained for compatibility.
      */
-    public static Set<String> collectResourceIds(AccessibilityNodeInfo root) {
+    public static Set<String> collectResourceIds(
+            AccessibilityNodeInfo root) {
+
         Set<String> result = new HashSet<>();
+
         collectResourceIdsRecursive(root, result);
+
         return result;
     }
 
@@ -618,13 +1062,17 @@ public final class SystemPageFingerprints {
         }
 
         CharSequence id = node.getViewIdResourceName();
+
         if (id != null && id.length() != 0) {
             out.add(id.toString());
         }
 
         final int childCount = node.getChildCount();
+
         for (int i = 0; i < childCount; i++) {
+
             AccessibilityNodeInfo child = node.getChild(i);
+
             if (child == null) {
                 continue;
             }
@@ -640,44 +1088,63 @@ public final class SystemPageFingerprints {
     private static boolean containsIgnoreCase(
             CharSequence value,
             String needle) {
+
         return value != null
                 && needle != null
-                && value.toString().toLowerCase().contains(needle);
+                && value.toString()
+                .toLowerCase(Locale.ROOT)
+                .contains(needle.toLowerCase(Locale.ROOT));
     }
 
     public static Set<String> requiredFor(Page page) {
+
         switch (page) {
+
             case DEVELOPER_OPTIONS:
                 return DEV_ACCESSIBILITY_REQUIRED;
+
             case SECURITY_PRIVACY:
                 return SECURITY_ACCESSIBILITY_REQUIRED;
+
             case DEVICE_ADMIN_APPS:
                 return DEVICE_ADMIN_ACCESSIBILITY_REQUIRED;
+
             case ACCESSIBILITY_INSTALLED_APPS:
                 return ACCESSIBILITY_ACCESSIBILITY_REQUIRED;
+
             case HIDDEN_APPS:
                 return HIDDEN_APPS_ACCESSIBILITY_REQUIRED;
+
             case SHELTER_APP_INFO:
                 return SHELTER_APP_INFO_ACCESSIBILITY_REQUIRED;
+
             default:
                 return Collections.emptySet();
         }
     }
 
     public static Set<String> forbiddenFor(Page page) {
+
         switch (page) {
+
             case DEVELOPER_OPTIONS:
                 return DEV_FORBIDDEN;
+
             case SECURITY_PRIVACY:
                 return SECURITY_FORBIDDEN;
+
             case DEVICE_ADMIN_APPS:
                 return DEVICE_ADMIN_FORBIDDEN;
+
             case ACCESSIBILITY_INSTALLED_APPS:
                 return ACCESSIBILITY_FORBIDDEN;
+
             case HIDDEN_APPS:
                 return HIDDEN_APPS_FORBIDDEN;
+
             case SHELTER_APP_INFO:
                 return SHELTER_APP_INFO_FORBIDDEN;
+
             default:
                 return Collections.emptySet();
         }
