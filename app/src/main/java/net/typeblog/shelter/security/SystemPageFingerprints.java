@@ -1101,53 +1101,14 @@ public final class SystemPageFingerprints {
          * the tree can activate this fast route.
          */
         if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)
-                && containsAnyTitleInTree(
-                root, FAST_SHELTER_APP_INFO_TITLES)) {
+                && containsShelterIdentityInTree(root)) {
             return Page.SHELTER_APP_INFO;
         }
 
         return Page.NONE;
     }
 
-    /**
-     * Searches the Accessibility tree for an exact title or content
-     * description match.
-     */
-    private static boolean containsAnyTitleInTree(
-            AccessibilityNodeInfo node,
-            Set<String> candidates) {
-
-        if (node == null) {
-            return false;
-        }
-
-        if (matchesAny(normalizedTitle(node.getText()), candidates)
-                || matchesAny(
-                normalizedTitle(node.getContentDescription()),
-                candidates)) {
-            return true;
-        }
-
-        final int childCount = node.getChildCount();
-
-        for (int i = 0; i < childCount; i++) {
-            AccessibilityNodeInfo child = node.getChild(i);
-
-            if (child == null) {
-                continue;
-            }
-
-            try {
-                if (containsAnyTitleInTree(child, candidates)) {
-                    return true;
-                }
-            } finally {
-                child.recycle();
-            }
-        }
-
-        return false;
-    }
+    
 
     /**
      * Handles an incomplete Settings/SubSettings tree.
