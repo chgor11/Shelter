@@ -271,6 +271,68 @@ public final class SystemPageFingerprints {
     );
 
     /*
+     * ============================================================
+     * INDEPENDENT SECONDARY FINGERPRINTS
+     * ============================================================
+     *
+     * These are deliberately separate from the original fingerprints.
+     * The original fingerprints above are not modified.
+     *
+     * A secondary match is mapped back to the same primary Page value,
+     * so callers still receive DEVICE_ADMIN_APPS or SHELTER_APP_INFO.
+     */
+
+    /*
+     * Device Admin Apps secondary route:
+     *
+     * This route is based on the Accessibility snapshot observed by
+     * PageProbe for Settings/SubSettings, plus the page title.
+     * It is intentionally independent from the large primary
+     * DEVICE_ADMIN_REQUIRED fingerprint.
+     */
+    private static final Set<String> DEVICE_ADMIN_SECONDARY_REQUIRED = set(
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/title",
+            "com.android.settings:id/coordinator"
+    );
+
+    /*
+     * Shelter App Info secondary route for InstalledAppDetailsTop.
+     *
+     * The primary route requires the Shelter name specifically on
+     * entity_header_title. The secondary route instead verifies the
+     * complete app-info structural group and searches the whole
+     * Accessibility tree for the Shelter identity in text/content
+     * descriptions. The original route remains unchanged.
+     */
+    private static final Set<String> SHELTER_APP_INFO_SECONDARY_INSTALLED_REQUIRED = set(
+            "com.android.settings:id/entity_header",
+            "com.android.settings:id/entity_header_summary",
+            "com.android.settings:id/entity_header_title",
+            "com.android.settings:id/button1",
+            "com.android.settings:id/button3",
+            "com.android.settings:id/button4",
+            "com.android.settings:id/recycler_view"
+    );
+
+    /*
+     * Shelter App Info secondary route for SubSettings.
+     *
+     * This route can use the visible page title/event title "Shelter"
+     * without requiring that the text be attached specifically to
+     * entity_header_title.
+     */
+    private static final Set<String> SHELTER_APP_INFO_SECONDARY_SUBSETTINGS_REQUIRED = set(
+            "com.android.settings:id/action_bar",
+            "com.android.settings:id/collapsing_appbar_extended_title",
+            "com.android.settings:id/recycler_view",
+            "com.android.settings:id/coordinator",
+            "android:id/title"
+    );
+
+    /*
      * Accessibility exposes a different tree from UIAutomator/uiautomator dump.
      */
     private static final Set<String> DEV_ACCESSIBILITY_REQUIRED = set(
@@ -510,6 +572,52 @@ public final class SystemPageFingerprints {
         Set<String> ids = scan.resourceIds;
 
         /*
+         * ============================================================
+         * INDEPENDENT SECONDARY FINGERPRINT ROUTES
+         * ============================================================
+         *
+         * These routes are evaluated separately from all original
+         * fingerprints below. A successful match is reported using
+         * the ORIGINAL Page enum value.
+         */
+
+        /*
+         * ------------------------------------------------------------
+         * Secondary: Device admin apps
+         * ------------------------------------------------------------
+         */
+        if (matchesDeviceAdminSecondary(
+                root,
+                cls,
+                visibleEventText,
+                ids)) {
+
+            return applyAboutPhoneException(
+                    Page.DEVICE_ADMIN_APPS,
+                    root,
+                    visibleEventText
+            );
+        }
+
+        /*
+         * ------------------------------------------------------------
+         * Secondary: Shelter App Info
+         * ------------------------------------------------------------
+         */
+        if (matchesShelterAppInfoSecondary(
+                root,
+                cls,
+                visibleEventText,
+                ids)) {
+
+            return applyAboutPhoneException(
+                    Page.SHELTER_APP_INFO,
+                    root,
+                    visibleEventText
+            );
+        }
+
+        /*
          * ------------------------------------------------------------
          * Shelter App Info - InstalledAppDetailsTop
          * ------------------------------------------------------------
@@ -691,6 +799,166 @@ public final class SystemPageFingerprints {
                 cls,
                 visibleEventText
         );
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * Independent secondary fingerprint: Device Admin Apps
+     * ------------------------------------------------------------
+     */
+    private static boolean matchesDeviceAdminSecondary(
+            AccessibilityNodeInfo root,
+            String cls,
+            CharSequence visibleEventText,
+            Set<String> ids) {
+
+        if (!SETTINGS_SUB_SETTINGS.equals(cls)) {
+            return false;
+        }
+
+        if (!containsAll(ids, DEVICE_ADMIN_SECONDARY_REQUIRED)) {
+            return false;
+        }
+
+        /*
+         * Prefer the event title because it is supplied directly by
+         * the Accessibility event. If it is absent, inspect visible
+         * node text/content-description values in the same root.
+         */
+        return matchesAny(
+                normalizedTitle(visibleEventText),
+                DEVICE_ADMIN_APPS_TITLES
+        ) || containsAnyTitleInTree(
+                root,
+                DEVICE_ADMIN_APPS_TITLES
+        );
+    }
+
+    /*
+     * ------------------------------------------------------------
+     * Independent secondary fingerprint: Shelter App Info
+     * ------------------------------------------------------------
+     */
+    private static boolean matchesShelterAppInfoSecondary(
+            AccessibilityNodeInfo root,
+            String cls,
+            CharSequence visibleEventText,
+            Set<String> ids) {
+
+        if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)) {
+
+            if (!containsAll(
+                    ids,
+                    SHELTER_APP_INFO_SECONDARY_INSTALLED_REQUIRED)) {
+                return false;
+            }
+
+            /*
+             * Unlike the original fingerprint, do not require the
+             * Shelter text to belong specifically to
+             * entity_header_title.
+             */
+            return containsShelterIdentityInTree(root);
+        }
+
+        if (SETTINGS_SUB_SETTINGS.equals(cls)) {
+
+            if (!containsAll(
+                    ids,
+                    SHELTER_APP_INFO_SECONDARY_SUBSETTINGS_REQUIRED)) {
+                return false;
+            }
+
+            /*
+             * For the SubSettings route, the visible page title is a
+             * strong identity marker when combined with this structure.
+             */
+            return matchesAny(
+                    normalizedTitle(visibleEventText),
+                    SHELTER_APP_INFO_TITLES
+            ) || containsAnyTitleInTree(
+                    root,
+                    SHELTER_APP_INFO_TITLES
+            );
+        }
+
+        return false;
+    }
+
+    private static boolean containsAnyTitleInTree(
+            AccessibilityNodeInfo node,
+            Set<String> candidates) {
+
+        if (node == null) {
+            return false;
+        }
+
+        if (matchesAny(
+                normalizedTitle(node.getText()),
+                candidates)) {
+            return true;
+        }
+
+        if (matchesAny(
+                normalizedTitle(node.getContentDescription()),
+                candidates)) {
+            return true;
+        }
+
+        final int childCount = node.getChildCount();
+
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                if (containsAnyTitleInTree(child, candidates)) {
+                    return true;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+
+        return false;
+    }
+
+    private static boolean containsShelterIdentityInTree(
+            AccessibilityNodeInfo node) {
+
+        if (node == null) {
+            return false;
+        }
+
+        if (containsIgnoreCase(node.getText(), SHELTER_NAME)
+                || containsIgnoreCase(
+                node.getContentDescription(),
+                SHELTER_NAME)) {
+            return true;
+        }
+
+        final int childCount = node.getChildCount();
+
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                if (containsShelterIdentityInTree(child)) {
+                    return true;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+
+        return false;
     }
 
     /**
