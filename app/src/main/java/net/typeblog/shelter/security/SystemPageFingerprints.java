@@ -124,51 +124,6 @@ public final class SystemPageFingerprints {
             "درباره تلفن"
     );
 
-    /*
-     * ============================================================
-     * FAST EVENT/TITLE FINGERPRINT LAYER
-     * ============================================================
-     *
-     * Checked before structural fingerprints.
-     * A match returns the existing Page enum.
-     * No existing fingerprint is removed or modified.
-     * About Phone is deliberately not included.
-     */
-    private static final Set<String> FAST_DEVELOPER_OPTIONS_TITLES = set(
-            "Developer options",
-            "گزینه‌های برنامه‌نویس"
-    );
-
-    private static final Set<String> FAST_SECURITY_PRIVACY_TITLES = set(
-            "Security and privacy",
-            "Security & privacy",
-            "امنیت و حریم خصوصی"
-    );
-
-    private static final Set<String> FAST_DEVICE_ADMIN_APPS_TITLES = set(
-            "Device admin apps",
-            "Device administrators",
-            "مدیران دستگاه",
-            "برنامه‌های مدیریت دستگاه"
-    );
-
-    private static final Set<String> FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES = set(
-            "Installed apps",
-            "Accessibility installed apps",
-            "برنامه‌های نصب‌شده",
-            "برنامه‌های نصب شده"
-    );
-
-    private static final Set<String> FAST_HIDDEN_APPS_TITLES = set(
-            "Hidden apps",
-            "برنامه‌های مخفی"
-    );
-
-    private static final Set<String> FAST_SHELTER_APP_INFO_TITLES = set(
-            "Shelter",
-            "شلتر"
-    );
-
     private static Set<String> set(String... values) {
         return Collections.unmodifiableSet(
                 new HashSet<>(Arrays.asList(values))
@@ -588,26 +543,20 @@ public final class SystemPageFingerprints {
             CharSequence eventClassName,
             CharSequence visibleEventText) {
 
-        if (root == null) {
-            return Page.NONE;
-        }
-
         /*
-         * FAST PATH:
-         * First compare the AccessibilityEvent text/title.
-         * If there is no exact match, normal detection continues.
+         * ============================================================
+         * FAST TITLE / EVENT-TEXT LAYER
+         * ============================================================
+         *
+         * This layer intentionally runs before ANY Accessibility tree
+         * traversal.  When Android supplies a reliable page title in
+         * AccessibilityEvent text, an exact match is enough to identify
+         * one of the protected pages, subject to the package/activity
+         * hard conditions below.
+         *
+         * If there is no exact match, detection falls through unchanged
+         * to the existing structural and incomplete-tree logic.
          */
-        Page fastPage = detectFastEventTitle(
-                root,
-                eventPackageName,
-                eventClassName,
-                visibleEventText
-        );
-
-        if (fastPage != Page.NONE) {
-            return fastPage;
-        }
-
         String pkg = eventPackageName == null
                 ? ""
                 : eventPackageName.toString();
@@ -615,6 +564,16 @@ public final class SystemPageFingerprints {
         String cls = eventClassName == null
                 ? ""
                 : eventClassName.toString();
+
+        Page fastPage = detectFastTitleMatch(
+                pkg,
+                cls,
+                visibleEventText
+        );
+
+        if (fastPage != Page.NONE) {
+            return fastPage;
+        }
 
         /*
          * Samsung Hidden Apps.
@@ -946,14 +905,6 @@ public final class SystemPageFingerprints {
         return false;
     }
 
-    /**
-     * Generic exact-title/content-description tree matcher used by
-     * both the Fast title layer and secondary title fingerprints.
-     *
-     * This method is intentionally retained separately from
-     * containsShelterIdentityInTree(), which performs Shelter-specific
-     * identity matching. Both helpers are required.
-     */
     private static boolean containsAnyTitleInTree(
             AccessibilityNodeInfo node,
             Set<String> candidates) {
@@ -995,11 +946,6 @@ public final class SystemPageFingerprints {
         return false;
     }
 
-    /**
-     * Shelter-specific identity matcher. This is intentionally distinct
-     * from containsAnyTitleInTree() because InstalledAppDetailsTop often
-     * exposes only the generic title "App info" as event text.
-     */
     private static boolean containsShelterIdentityInTree(
             AccessibilityNodeInfo node) {
 
@@ -1036,92 +982,92 @@ public final class SystemPageFingerprints {
     }
 
     /**
-     * Fast event/title fingerprint layer.
+     * Fast, event-driven title fingerprint.
      *
-     * Event text is checked first. If it does not match, the
-     * Accessibility tree is searched for an exact title/content
-     * description match.
+     * This method deliberately does not inspect AccessibilityNodeInfo.
+     * Its purpose is to identify the common case before any tree scan.
+     * If the event text is absent, malformed, or unrelated, it simply
+     * returns NONE and the normal detector continues unchanged.
      *
-     * No fuzzy matching is used.
+     * The package/activity checks are kept here so a generic title cannot
+     * identify a protected page outside the expected Android Settings
+     * or Samsung Launcher activity.
      */
-    private static Page detectFastEventTitle(
-            AccessibilityNodeInfo root,
-            CharSequence eventPackageName,
-            CharSequence eventClassName,
+    private static Page detectFastTitleMatch(
+            String pkg,
+            String cls,
             CharSequence visibleEventText) {
 
-        String pkg = eventPackageName == null
-                ? ""
-                : eventPackageName.toString();
+        String title = normalizeEventTitle(visibleEventText);
 
-        String cls = eventClassName == null
-                ? ""
-                : eventClassName.toString();
-
-        String eventTitle = normalizedTitle(visibleEventText);
-
-        // Samsung Hidden Apps.
-        if (LAUNCHER.equals(pkg) && APP_PICKER.equals(cls)) {
-            if (matchesAny(eventTitle, FAST_HIDDEN_APPS_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_HIDDEN_APPS_TITLES)) {
-                return Page.HIDDEN_APPS;
-            }
+        if (title.isEmpty()) {
+            return Page.NONE;
         }
 
-        // All ordinary protected pages are inside Settings.
+        /* About Phone is an explicit non-protected exception. */
+        if (ABOUT_PHONE_TITLES.contains(title)) {
+            return Page.NONE;
+        }
+
+        /* Samsung Hidden Apps has a distinct package/activity pair. */
+        if (LAUNCHER.equals(pkg)
+                && APP_PICKER.equals(cls)
+                && matchesAny(title, HIDDEN_APPS_TITLES)) {
+            return Page.HIDDEN_APPS;
+        }
+
+        /* All remaining fast title fingerprints belong to Settings. */
         if (!SETTINGS.equals(pkg)) {
             return Page.NONE;
         }
 
-        // SubSettings pages.
-        if (SETTINGS_SUB_SETTINGS.equals(cls)) {
-
-            if (matchesAny(eventTitle, FAST_DEVELOPER_OPTIONS_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_DEVELOPER_OPTIONS_TITLES)) {
-                return Page.DEVELOPER_OPTIONS;
-            }
-
-            if (matchesAny(eventTitle, FAST_SECURITY_PRIVACY_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_SECURITY_PRIVACY_TITLES)) {
-                return Page.SECURITY_PRIVACY;
-            }
-
-            if (matchesAny(eventTitle, FAST_DEVICE_ADMIN_APPS_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_DEVICE_ADMIN_APPS_TITLES)) {
-                return Page.DEVICE_ADMIN_APPS;
-            }
-
-            if (matchesAny(eventTitle, FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES)) {
-                return Page.ACCESSIBILITY_INSTALLED_APPS;
-            }
-
-            if (matchesAny(eventTitle, FAST_SHELTER_APP_INFO_TITLES)
-                    || containsAnyTitleInTree(
-                    root, FAST_SHELTER_APP_INFO_TITLES)) {
-                return Page.SHELTER_APP_INFO;
-            }
+        if (!SETTINGS_SUB_SETTINGS.equals(cls)
+                && !SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)) {
+            return Page.NONE;
         }
 
-        /*
-         * InstalledAppDetailsTop normally reports "App info", not
-         * "Shelter". Therefore only an exact Shelter title found in
-         * the tree can activate this fast route.
-         */
-        if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)
-                && containsShelterIdentityInTree(root)) {
+        if (matchesAny(title, DEVELOPER_OPTIONS_TITLES)) {
+            return Page.DEVELOPER_OPTIONS;
+        }
+
+        if (matchesAny(title, SECURITY_PRIVACY_TITLES)) {
+            return Page.SECURITY_PRIVACY;
+        }
+
+        if (matchesAny(title, DEVICE_ADMIN_APPS_TITLES)) {
+            return Page.DEVICE_ADMIN_APPS;
+        }
+
+        if (matchesAny(title, ACCESSIBILITY_INSTALLED_APPS_TITLES)) {
+            return Page.ACCESSIBILITY_INSTALLED_APPS;
+        }
+
+        if (matchesAny(title, SHELTER_APP_INFO_TITLES)) {
             return Page.SHELTER_APP_INFO;
         }
 
         return Page.NONE;
     }
 
+    /**
+     * Converts the common AccessibilityEvent#getText().toString() form
+     * such as "[Device admin apps]" into the exact title value used by
+     * the fast fingerprint table.
+     *
+     * Only one outer pair of square brackets is removed. No fuzzy or
+     * substring matching is performed.
+     */
+    private static String normalizeEventTitle(CharSequence value) {
+        String normalized = normalizedTitle(value);
 
+        if (normalized.length() >= 2
+                && normalized.charAt(0) == '['
+                && normalized.charAt(normalized.length() - 1) == ']') {
+            normalized = normalized.substring(1, normalized.length() - 1).trim();
+        }
+
+        return normalized;
+    }
 
     /**
      * Handles an incomplete Settings/SubSettings tree.
