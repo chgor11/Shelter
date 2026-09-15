@@ -124,6 +124,51 @@ public final class SystemPageFingerprints {
             "درباره تلفن"
     );
 
+    /*
+     * ============================================================
+     * FAST EVENT/TITLE FINGERPRINT LAYER
+     * ============================================================
+     *
+     * Checked before structural fingerprints.
+     * A match returns the existing Page enum.
+     * No existing fingerprint is removed or modified.
+     * About Phone is deliberately not included.
+     */
+    private static final Set<String> FAST_DEVELOPER_OPTIONS_TITLES = set(
+            "Developer options",
+            "گزینه‌های برنامه‌نویس"
+    );
+
+    private static final Set<String> FAST_SECURITY_PRIVACY_TITLES = set(
+            "Security and privacy",
+            "Security & privacy",
+            "امنیت و حریم خصوصی"
+    );
+
+    private static final Set<String> FAST_DEVICE_ADMIN_APPS_TITLES = set(
+            "Device admin apps",
+            "Device administrators",
+            "مدیران دستگاه",
+            "برنامه‌های مدیریت دستگاه"
+    );
+
+    private static final Set<String> FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES = set(
+            "Installed apps",
+            "Accessibility installed apps",
+            "برنامه‌های نصب‌شده",
+            "برنامه‌های نصب شده"
+    );
+
+    private static final Set<String> FAST_HIDDEN_APPS_TITLES = set(
+            "Hidden apps",
+            "برنامه‌های مخفی"
+    );
+
+    private static final Set<String> FAST_SHELTER_APP_INFO_TITLES = set(
+            "Shelter",
+            "شلتر"
+    );
+
     private static Set<String> set(String... values) {
         return Collections.unmodifiableSet(
                 new HashSet<>(Arrays.asList(values))
@@ -547,6 +592,22 @@ public final class SystemPageFingerprints {
             return Page.NONE;
         }
 
+        /*
+         * FAST PATH:
+         * First compare the AccessibilityEvent text/title.
+         * If there is no exact match, normal detection continues.
+         */
+        Page fastPage = detectFastEventTitle(
+                root,
+                eventPackageName,
+                eventClassName,
+                visibleEventText
+        );
+
+        if (fastPage != Page.NONE) {
+            return fastPage;
+        }
+
         String pkg = eventPackageName == null
                 ? ""
                 : eventPackageName.toString();
@@ -951,6 +1012,133 @@ public final class SystemPageFingerprints {
 
             try {
                 if (containsShelterIdentityInTree(child)) {
+                    return true;
+                }
+            } finally {
+                child.recycle();
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Fast event/title fingerprint layer.
+     *
+     * Event text is checked first. If it does not match, the
+     * Accessibility tree is searched for an exact title/content
+     * description match.
+     *
+     * No fuzzy matching is used.
+     */
+    private static Page detectFastEventTitle(
+            AccessibilityNodeInfo root,
+            CharSequence eventPackageName,
+            CharSequence eventClassName,
+            CharSequence visibleEventText) {
+
+        String pkg = eventPackageName == null
+                ? ""
+                : eventPackageName.toString();
+
+        String cls = eventClassName == null
+                ? ""
+                : eventClassName.toString();
+
+        String eventTitle = normalizedTitle(visibleEventText);
+
+        // Samsung Hidden Apps.
+        if (LAUNCHER.equals(pkg) && APP_PICKER.equals(cls)) {
+            if (matchesAny(eventTitle, FAST_HIDDEN_APPS_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_HIDDEN_APPS_TITLES)) {
+                return Page.HIDDEN_APPS;
+            }
+        }
+
+        // All ordinary protected pages are inside Settings.
+        if (!SETTINGS.equals(pkg)) {
+            return Page.NONE;
+        }
+
+        // SubSettings pages.
+        if (SETTINGS_SUB_SETTINGS.equals(cls)) {
+
+            if (matchesAny(eventTitle, FAST_DEVELOPER_OPTIONS_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_DEVELOPER_OPTIONS_TITLES)) {
+                return Page.DEVELOPER_OPTIONS;
+            }
+
+            if (matchesAny(eventTitle, FAST_SECURITY_PRIVACY_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_SECURITY_PRIVACY_TITLES)) {
+                return Page.SECURITY_PRIVACY;
+            }
+
+            if (matchesAny(eventTitle, FAST_DEVICE_ADMIN_APPS_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_DEVICE_ADMIN_APPS_TITLES)) {
+                return Page.DEVICE_ADMIN_APPS;
+            }
+
+            if (matchesAny(eventTitle, FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_ACCESSIBILITY_INSTALLED_APPS_TITLES)) {
+                return Page.ACCESSIBILITY_INSTALLED_APPS;
+            }
+
+            if (matchesAny(eventTitle, FAST_SHELTER_APP_INFO_TITLES)
+                    || containsAnyTitleInTree(
+                    root, FAST_SHELTER_APP_INFO_TITLES)) {
+                return Page.SHELTER_APP_INFO;
+            }
+        }
+
+        /*
+         * InstalledAppDetailsTop normally reports "App info", not
+         * "Shelter". Therefore only an exact Shelter title found in
+         * the tree can activate this fast route.
+         */
+        if (SETTINGS_INSTALLED_APP_DETAILS_TOP.equals(cls)
+                && containsAnyTitleInTree(
+                root, FAST_SHELTER_APP_INFO_TITLES)) {
+            return Page.SHELTER_APP_INFO;
+        }
+
+        return Page.NONE;
+    }
+
+    /**
+     * Searches the Accessibility tree for an exact title or content
+     * description match.
+     */
+    private static boolean containsAnyTitleInTree(
+            AccessibilityNodeInfo node,
+            Set<String> candidates) {
+
+        if (node == null) {
+            return false;
+        }
+
+        if (matchesAny(normalizedTitle(node.getText()), candidates)
+                || matchesAny(
+                normalizedTitle(node.getContentDescription()),
+                candidates)) {
+            return true;
+        }
+
+        final int childCount = node.getChildCount();
+
+        for (int i = 0; i < childCount; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+
+            if (child == null) {
+                continue;
+            }
+
+            try {
+                if (containsAnyTitleInTree(child, candidates)) {
                     return true;
                 }
             } finally {
