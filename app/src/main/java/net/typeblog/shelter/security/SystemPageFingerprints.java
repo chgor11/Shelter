@@ -946,6 +946,14 @@ public final class SystemPageFingerprints {
         return false;
     }
 
+    /**
+     * Generic exact-title/content-description tree matcher used by
+     * both the Fast title layer and secondary title fingerprints.
+     *
+     * This method is intentionally retained separately from
+     * containsShelterIdentityInTree(), which performs Shelter-specific
+     * identity matching. Both helpers are required.
+     */
     private static boolean containsAnyTitleInTree(
             AccessibilityNodeInfo node,
             Set<String> candidates) {
@@ -987,6 +995,11 @@ public final class SystemPageFingerprints {
         return false;
     }
 
+    /**
+     * Shelter-specific identity matcher. This is intentionally distinct
+     * from containsAnyTitleInTree() because InstalledAppDetailsTop often
+     * exposes only the generic title "App info" as event text.
+     */
     private static boolean containsShelterIdentityInTree(
             AccessibilityNodeInfo node) {
 
@@ -1108,7 +1121,7 @@ public final class SystemPageFingerprints {
         return Page.NONE;
     }
 
-    
+
 
     /**
      * Handles an incomplete Settings/SubSettings tree.
