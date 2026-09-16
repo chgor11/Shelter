@@ -103,12 +103,12 @@ public final class SystemPageFingerprints {
 
     /*
      * ============================================================
-     * ABOUT PHONE EXCEPTION
+     * white-list EXCEPTION
      * ============================================================
      *
      * IMPORTANT:
      *
-     * About Phone is NOT a protected page.
+     * white-list is NOT a protected page.
      *
      * It is checked ONLY AFTER another part of the detector has
      * already classified the current page as a protected-page
@@ -119,9 +119,28 @@ public final class SystemPageFingerprints {
      * The exception is active only when the current SYSTEM language
      * is Persian or English.
      */
-    private static final Set<String> ABOUT_PHONE_TITLES = set(
+    private static final Set<String> white_list_TITLES = set(
             "About Phone",
-            "درباره تلفن"
+            "درباره تلفن",
+            "Live Transcribe",
+            "Sound Notifications",
+            "Voice Access",
+            "SIM card status",
+            "Battery information",
+            "Continue on other devices",
+            "NFC and contactless payments",
+            "Bluetooth",
+            "Wi-Fi",
+            "Voice Access",
+            "حالت پرواز",
+            "آوانویسی زنده",
+            "اعلان‌های تشخیص صدا",
+            "وضعیت سیم‌کارت",
+            "اطلاعات باتری",
+            "ادامه در دستگاه‌های دیگر",
+            "بلوتوث",
+            "‏NFC و پرداخت‌های بدون مخاطب"
+        
     );
 
     private static Set<String> set(String... values) {
@@ -1005,7 +1024,7 @@ public final class SystemPageFingerprints {
         }
 
         /* About Phone is an explicit non-protected exception. */
-        if (ABOUT_PHONE_TITLES.contains(title)) {
+        if (white_list_TITLES.contains(title)) {
             return Page.NONE;
         }
 
@@ -1252,7 +1271,7 @@ public final class SystemPageFingerprints {
 
         String eventTitle = normalizedTitle(visibleEventText);
 
-        if (ABOUT_PHONE_TITLES.contains(eventTitle)) {
+        if (white_list_TITLES.contains(eventTitle)) {
             return true;
         }
 
@@ -1301,7 +1320,7 @@ public final class SystemPageFingerprints {
         }
 
         String normalized = normalizedTitle(value);
-        return ABOUT_PHONE_TITLES.contains(normalized);
+        return white_list_TITLES.contains(normalized);
     }
 
     /**
