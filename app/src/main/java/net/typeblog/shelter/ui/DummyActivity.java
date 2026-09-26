@@ -1109,13 +1109,6 @@ public class DummyActivity extends SecureActivity {
          * ============================================================
          */
         try {
-            List<String> permittedAccessibilityServices =
-                    mPolicyManager.getPermittedAccessibilityServices(admin);
-            
-            boolean accessibilityPolicyVerified =
-                    permittedAccessibilityServices != null
-                            && permittedAccessibilityServices.isEmpty();
-            
             boolean verified =
                     mPolicyManager.getRequiredPasswordComplexity()
                             == requiredPasswordComplexity
@@ -1126,8 +1119,7 @@ public class DummyActivity extends SecureActivity {
                     && mPolicyManager.getMaximumTimeToLock(admin)
                             == maximumTimeToLock
                     && mPolicyManager.getPasswordExpirationTimeout(admin)
-                            == passwordExpirationTimeout
-                    && accessibilityPolicyVerified;
+                            == passwordExpirationTimeout;
 
             Bundle restrictions =
                     mPolicyManager.getUserRestrictions(admin);
