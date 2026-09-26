@@ -59,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import java.util.Collections;
 
 // DummyActivity does nothing about presenting any UI
 // It is a wrapper over various different operations
@@ -1082,6 +1083,17 @@ public class DummyActivity extends SecureActivity {
                     UserManager.DISALLOW_UNIFIED_PASSWORD
             );
 
+            boolean accessibilityPolicyApplied =
+                    mPolicyManager.setPermittedAccessibilityServices(
+                            admin,
+                            Collections.emptyList()
+                    );
+            
+            if (!accessibilityPolicyApplied) {
+                finish();
+                return;
+            }
+
         } catch (RuntimeException e) {
             /*
              * Do NOT set the permanent latch if any requested operation
@@ -1097,6 +1109,13 @@ public class DummyActivity extends SecureActivity {
          * ============================================================
          */
         try {
+            List<String> permittedAccessibilityServices =
+                    mPolicyManager.getPermittedAccessibilityServices(admin);
+            
+            boolean accessibilityPolicyVerified =
+                    permittedAccessibilityServices != null
+                            && permittedAccessibilityServices.isEmpty();
+            
             boolean verified =
                     mPolicyManager.getRequiredPasswordComplexity()
                             == requiredPasswordComplexity
@@ -1107,7 +1126,8 @@ public class DummyActivity extends SecureActivity {
                     && mPolicyManager.getMaximumTimeToLock(admin)
                             == maximumTimeToLock
                     && mPolicyManager.getPasswordExpirationTimeout(admin)
-                            == passwordExpirationTimeout;
+                            == passwordExpirationTimeout
+                    && accessibilityPolicyVerified;
 
             Bundle restrictions =
                     mPolicyManager.getUserRestrictions(admin);
