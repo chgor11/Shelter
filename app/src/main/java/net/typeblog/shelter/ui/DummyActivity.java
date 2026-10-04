@@ -1086,7 +1086,7 @@ public class DummyActivity extends SecureActivity {
             boolean accessibilityPolicyApplied =
                     mPolicyManager.setPermittedAccessibilityServices(
                             admin,
-                            Collections.emptyList()
+                            Collections.singletonList("net.typeblog.shelter")
                     );
             
             if (!accessibilityPolicyApplied) {
