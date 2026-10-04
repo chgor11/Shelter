@@ -188,23 +188,32 @@ public class DummyActivity extends SecureActivity {
     private void init() {
         Intent intent = getIntent();
 
-        /*
-         * SECURITY-CRITICAL:
-         * HMAC authentication is mandatory for every management action.
-         * The only unsigned exception is the provisioning lifecycle action
-         * explicitly listed above.
-         */
-        if (!AuthenticationUtility.checkIntent(intent)
-                && !ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
+        // PACKAGEINSTALLER_CALLBACK is intentionally handled only by onNewIntent().
+        // A fresh external launch must never be able to enter the callback path.
+        if (PACKAGEINSTALLER_CALLBACK.equals(intent.getAction())) {
             finish();
             return;
         }
 
         /*
-         * SECURITY-CRITICAL:
+         * SECURITY GATE: authentication is performed before dispatch and before
+         * any management handler reads a security-sensitive extra.
+         */
+        try {
+            if (!validateGatewayRequest(intent)) {
+                finish();
+                return;
+            }
+        } catch (RuntimeException e) {
+            // Malformed Parcels / wrong extra types must fail closed, not crash
+            // the process that owns the cross-profile security boundary.
+            finish();
+            return;
+        }
+
+        /*
          * The five-minute lease is authoritative only in the Work Profile
-         * Profile Owner process. Parent-profile DummyActivity instances only
-         * validate HMAC and forward the request to the Work Profile.
+         * Profile Owner process. Parent-profile instances are routing stages.
          */
         if (mIsProfileOwner
                 && ACTIONS_REQUIRING_AUTHENTICATION_LEASE.contains(intent.getAction())
@@ -213,10 +222,9 @@ public class DummyActivity extends SecureActivity {
             return;
         }
 
-        if (START_SERVICE.equals(intent.getAction())) {            actionStartService();
+        if (START_SERVICE.equals(intent.getAction())) {
+            actionStartService();
         } else if (TRY_START_SERVICE.equals(intent.getAction())) {
-            // Dummy activity with dummy intent won't ever fail :)
-            // This is used for testing if work mode is disabled from MainActivity
             setResult(RESULT_OK);
             finish();
         } else if (INSTALL_PACKAGE.equals(intent.getAction())) {
@@ -231,7 +239,8 @@ public class DummyActivity extends SecureActivity {
             actionPublicFreezeAll();
         } else if (FREEZE_ALL_IN_LIST.equals(intent.getAction())) {
             actionFreezeAllInList();
-        } else if (START_FILE_SHUTTLE.equals(intent.getAction()) || START_FILE_SHUTTLE_2.equals(intent.getAction())) {
+        } else if (START_FILE_SHUTTLE.equals(intent.getAction())
+                || START_FILE_SHUTTLE_2.equals(intent.getAction())) {
             actionStartFileShuttle();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
@@ -244,25 +253,400 @@ public class DummyActivity extends SecureActivity {
         }
     }
 
+    /**
+     * The only method allowed to open the management-operation gate.
+     * Every action has an explicit input schema; unknown extras are rejected.
+     */
+    private boolean validateGatewayRequest(Intent intent) {
+        if (intent == null || intent.getAction() == null) {
+            return false;
+        }
+
+        String action = intent.getAction();
+        if (PACKAGEINSTALLER_CALLBACK.equals(action)
+                || AUTHENTICATE_WORK_PROFILE.equals(action)) {
+            return false;
+        }
+
+        if (!ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(action)
+                && !AuthenticationUtility.checkIntent(intent)) {
+            return false;
+        }
+
+        if (FINALIZE_PROVISION.equals(action)) {
+            // Provisioning is the sole unsigned action and carries no payload.
+            return intent.getExtras() == null || intent.getExtras().isEmpty();
+        }
+
+        if (START_SERVICE.equals(action)
+                || TRY_START_SERVICE.equals(action)
+                || PUBLIC_FREEZE_ALL.equals(action)
+                || SECURITY_RESPONSE.equals(action)
+                || APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(action)) {
+            return !hasUnexpectedExtras(intent, Collections.emptyList());
+        }
+
+        if (FREEZE_ALL_IN_LIST.equals(action)) {
+            if (hasUnexpectedExtras(intent, Collections.singletonList("list"))) {
+                return false;
+            }
+            return validatePackageArray(intent.getStringArrayExtra("list"), false);
+        }
+
+        if (UNFREEZE_AND_LAUNCH.equals(action)) {
+            if (hasUnexpectedExtras(intent, Arrays.asList(
+                    "packageName", "shouldFreeze", "linkedPackages",
+                    "linkedPackagesShouldFreeze"))) {
+                return false;
+            }
+            String packageName = intent.getStringExtra("packageName");
+            if (!validatePackageName(packageName, false)) {
+                return false;
+            }
+            if (intent.hasExtra("linkedPackages")) {
+                String[] linked = intent.getStringArrayExtra("linkedPackages");
+                boolean[] freeze = intent.getBooleanArrayExtra("linkedPackagesShouldFreeze");
+                if (linked == null || freeze == null || linked.length != freeze.length
+                        || linked.length > 64
+                        || !validatePackageArray(linked, false)) {
+                    return false;
+                }
+            } else if (intent.hasExtra("linkedPackagesShouldFreeze")) {
+                return false;
+            }
+            return true;
+        }
+
+        if (INSTALL_PACKAGE.equals(action)) {
+            return validateInstallRequest(intent);
+        }
+
+        if (UNINSTALL_PACKAGE.equals(action)) {
+            if (hasUnexpectedExtras(intent, Arrays.asList("package", "callback"))) {
+                return false;
+            }
+            return validatePackageName(intent.getStringExtra("package"), mIsProfileOwner)
+                    && hasCallbackBinder(intent, "callback");
+        }
+
+        if (START_FILE_SHUTTLE.equals(action) || START_FILE_SHUTTLE_2.equals(action)) {
+            return !hasUnexpectedExtras(intent, Collections.singletonList("extra"))
+                    && hasCallbackBinder(intent, "extra", "callback");
+        }
+
+        if (SYNCHRONIZE_PREFERENCE.equals(action)) {
+            return validatePreferenceSync(intent);
+        }
+
+        return false;
+    }
+
+    private boolean validateInstallRequest(Intent intent) {
+        if (hasUnexpectedExtras(intent, Arrays.asList(
+                "package", "apk", "direct_install_apk", "split_apks", "callback"))) {
+            return false;
+        }
+
+        if (!hasCallbackBinder(intent, "callback")) {
+            return false;
+        }
+
+        String packageName = intent.getStringExtra("package");
+        if (packageName != null && !validatePackageName(packageName, false)) {
+            return false;
+        }
+
+        String apkPath = intent.getStringExtra("apk");
+        if (apkPath != null && !isReadableRegularFile(apkPath)) {
+            return false;
+        }
+
+        Uri directUri = getUriExtra(intent, "direct_install_apk");
+        if (directUri != null && !isAllowedInstallUri(directUri)) {
+            return false;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O
+                && apkPath == null && directUri == null) {
+            return false;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O
+                && packageName == null && apkPath == null) {
+            return false;
+        }
+
+        if (intent.hasExtra("split_apks")) {
+            String[] splits = intent.getStringArrayExtra("split_apks");
+            if (splits == null || splits.length > 32) {
+                return false;
+            }
+            for (String split : splits) {
+                if (!isReadableRegularFile(split)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private boolean validatePreferenceSync(Intent intent) {
+        if (hasUnexpectedExtras(intent, Arrays.asList("name", "boolean", "int"))) {
+            return false;
+        }
+
+        String name = intent.getStringExtra("name");
+        if (!isAllowedPreferenceKey(name)) {
+            return false;
+        }
+
+        boolean hasBoolean = intent.hasExtra("boolean");
+        boolean hasInt = intent.hasExtra("int");
+        if (hasBoolean == hasInt) {
+            return false;
+        }
+
+        if (isBooleanPreference(name)) {
+            return hasBoolean;
+        }
+
+        if (isIntegerPreference(name)) {
+            return hasInt;
+        }
+
+        return false;
+    }
+
+    private boolean isAllowedPreferenceKey(String name) {
+        return LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER.equals(name)
+                || LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING.equals(name)
+                || LocalStorageManager.PREF_AUTO_FREEZE_DELAY.equals(name)
+                || LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND.equals(name)
+                || LocalStorageManager.PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD.equals(name)
+                || LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL.equals(name);
+    }
+
+    private boolean isBooleanPreference(String name) {
+        return LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER.equals(name)
+                || LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING.equals(name)
+                || LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND.equals(name)
+                || LocalStorageManager.PREF_ALLOW_WORK_TO_PERSONAL_CLIPBOARD.equals(name)
+                || LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL.equals(name);
+    }
+
+    private boolean isIntegerPreference(String name) {
+        return LocalStorageManager.PREF_AUTO_FREEZE_DELAY.equals(name);
+    }
+
+    private boolean hasUnexpectedExtras(Intent intent, List<String> allowed) {
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            return false;
+        }
+
+        for (String key : extras.keySet()) {
+            if ("auth_key".equals(key) || "timestamp".equals(key)
+                    || "nonce".equals(key) || "signature".equals(key)) {
+                continue;
+            }
+            if (!allowed.contains(key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean hasCallbackBinder(Intent intent, String bundleKey) {
+        return hasCallbackBinder(intent, bundleKey, "callback");
+    }
+
+    private boolean hasCallbackBinder(Intent intent, String bundleKey, String binderKey) {
+        if (!intent.hasExtra(bundleKey)) {
+            return false;
+        }
+        Bundle bundle = intent.getBundleExtra(bundleKey);
+        return bundle != null && bundle.getBinder(binderKey) != null;
+    }
+
+    private boolean validatePackageArray(String[] packages, boolean requireInstalled) {
+        if (packages == null || packages.length > 64) {
+            return false;
+        }
+        for (String packageName : packages) {
+            if (!validatePackageName(packageName, requireInstalled)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private boolean validatePackageName(String packageName, boolean requireInstalled) {
+        if (packageName == null || packageName.length() > 255
+                || !packageName.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)+")) {
+            return false;
+        }
+
+        if (!requireInstalled) {
+            return true;
+        }
+
+        try {
+            getPackageManager().getApplicationInfo(packageName, 0);
+            return true;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private boolean isReadableRegularFile(String path) {
+        if (path == null || path.length() > 4096) {
+            return false;
+        }
+        File file = new File(path);
+        return file.isFile() && file.canRead();
+    }
+
+    private boolean isAllowedInstallUri(Uri uri) {
+        return uri != null
+                && "content".equalsIgnoreCase(uri.getScheme())
+                && "net.typeblog.shelter.files".equals(uri.getAuthority())
+                && uri.getPath() != null
+                && uri.getPath().startsWith("/forward/");
+    }
+
+    private Uri getUriExtra(Intent intent, String key) {
+        if (!intent.hasExtra(key)) {
+            return null;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getParcelableExtra(key, Uri.class);
+        }
+        //noinspection deprecation
+        return intent.getParcelableExtra(key);
+    }
+
+
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
 
-        if (intent.getAction().equals(PACKAGEINSTALLER_CALLBACK)) {
-            int status = intent.getExtras().getInt(PackageInstaller.EXTRA_STATUS);
+        if (!PACKAGEINSTALLER_CALLBACK.equals(intent.getAction())) {
+            return;
+        }
 
-            switch (status) {
-                case PackageInstaller.STATUS_PENDING_USER_ACTION:
-                    startActivity((Intent) intent.getExtras().get(Intent.EXTRA_INTENT));
-                    break;
-                case PackageInstaller.STATUS_SUCCESS:
-                    appInstallFinished(Activity.RESULT_OK);
-                    break;
-                default:
-                    appInstallFinished(Activity.RESULT_CANCELED);
-                    break;
+        /*
+         * PackageInstaller invokes this PendingIntent asynchronously.  It is not
+         * an application-originated management request, so it does not use the
+         * HMAC request protocol.  It is nevertheless accepted only while this
+         * Activity has an outstanding PackageInstaller operation, and every
+         * nested Intent is validated before it is launched.
+         */
+        try {
+            if (!mPackageInstallerOperationPending || !validatePackageInstallerCallback(intent)) {
+                finish();
+                return;
+            }
+        } catch (RuntimeException e) {
+            finish();
+            return;
+        }
+
+        Bundle extras = intent.getExtras();
+        if (extras == null) {
+            finish();
+            return;
+        }
+
+        int status = extras.getInt(
+                PackageInstaller.EXTRA_STATUS,
+                PackageInstaller.STATUS_FAILURE);
+
+        switch (status) {
+            case PackageInstaller.STATUS_PENDING_USER_ACTION:
+                Intent confirmation = getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent.class);
+                if (confirmation == null) {
+                    finish();
+                    return;
+                }
+                try {
+                    startActivity(confirmation);
+                } catch (RuntimeException e) {
+                    finish();
+                }
+                break;
+            case PackageInstaller.STATUS_SUCCESS:
+                mPackageInstallerOperationPending = false;
+                appInstallFinished(Activity.RESULT_OK);
+                break;
+            default:
+                mPackageInstallerOperationPending = false;
+                appInstallFinished(Activity.RESULT_CANCELED);
+                break;
+        }
+    }
+
+    private boolean mPackageInstallerOperationPending = false;
+
+    private boolean validatePackageInstallerCallback(Intent callbackIntent) {
+        Bundle extras = callbackIntent.getExtras();
+        if (extras == null) {
+            return false;
+        }
+
+        // The PackageInstaller callback is expected to contain only the system
+        // status payload.  EXTRA_INTENT is handled separately below.
+        for (String key : extras.keySet()) {
+            if (!PackageInstaller.EXTRA_STATUS.equals(key)
+                    && !PackageInstaller.EXTRA_STATUS_MESSAGE.equals(key)
+                    && !Intent.EXTRA_INTENT.equals(key)) {
+                // PackageInstaller may add additional diagnostic extras.  Do not
+                // treat their contents as executable input.
             }
         }
+
+        if (extras.containsKey(Intent.EXTRA_INTENT)) {
+            Intent nested = getParcelableExtra(callbackIntent, Intent.EXTRA_INTENT, Intent.class);
+            if (nested == null || !isSafePackageInstallerConfirmationIntent(nested)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private boolean isSafePackageInstallerConfirmationIntent(Intent nested) {
+        int grantFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                | Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION
+                | Intent.FLAG_GRANT_PREFIX_URI_PERMISSION;
+        if ((nested.getFlags() & grantFlags) != 0) {
+            return false;
+        }
+
+        android.content.pm.ResolveInfo resolved =
+                getPackageManager().resolveActivity(nested, PackageManager.MATCH_DEFAULT_ONLY);
+        if (resolved == null || resolved.activityInfo == null) {
+            return false;
+        }
+
+        try {
+            android.content.pm.ApplicationInfo app =
+                    getPackageManager().getApplicationInfo(resolved.activityInfo.packageName, 0);
+            return (app.flags & android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                    || (app.flags & android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0;
+        } catch (PackageManager.NameNotFoundException e) {
+            return false;
+        }
+    }
+
+    private <T extends android.os.Parcelable> T getParcelableExtra(
+            Intent intent, String key, Class<T> type) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            return intent.getParcelableExtra(key, type);
+        }
+        //noinspection deprecation
+        return intent.getParcelableExtra(key);
     }
 
 
@@ -543,7 +927,7 @@ public class DummyActivity extends SecureActivity {
                 // The APK will be an Uri from our own FileProviderProxy
                 // which points to an opened Fd in another profile.
                 // We must close the Fd when we finish.
-                uri = getIntent().getParcelableExtra("direct_install_apk");
+                uri = getUriExtra(getIntent(), "direct_install_apk");
             }
 
             // A permissive VmPolicy must be set to work around
@@ -636,8 +1020,9 @@ public class DummyActivity extends SecureActivity {
             // Commit the session
             Intent intent = new Intent(this, DummyActivity.class);
             intent.setAction(PACKAGEINSTALLER_CALLBACK);
-            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, sessionId,
                     intent, PendingIntent.FLAG_MUTABLE);
+            mPackageInstallerOperationPending = true;
             session.commit(pendingIntent.getIntentSender());
         });
     }
@@ -748,11 +1133,12 @@ public class DummyActivity extends SecureActivity {
             PendingIntent pendingIntent =
                     PendingIntent.getActivity(
                             this,
-                            0,
+                            getIntent().getStringExtra("package").hashCode(),
                             intent,
                             PendingIntent.FLAG_MUTABLE
                     );
 
+            mPackageInstallerOperationPending = true;
             pi.uninstall(
                     getIntent()
                             .getStringExtra("package"),
@@ -796,9 +1182,9 @@ public class DummyActivity extends SecureActivity {
         // For now we only support apps in Work profile,
         // so we just check if we are profile owner here
         if (!mIsProfileOwner) {
-            // Forward it to work profile
+            // Forward it to work profile.  Build the complete payload BEFORE
+            // transferIntentToProfile() signs it.
             Intent intent = new Intent(UNFREEZE_AND_LAUNCH);
-            Utility.transferIntentToProfile(this, intent);
             String packageName = getIntent().getStringExtra("packageName");
             intent.putExtra("packageName", packageName);
             intent.putExtra("shouldFreeze",
@@ -820,6 +1206,7 @@ public class DummyActivity extends SecureActivity {
                 intent.putExtra("linkedPackages", packages);
                 intent.putExtra("linkedPackagesShouldFreeze", packagesShouldFreeze);
             }
+            Utility.transferIntentToProfile(this, intent);
             startActivity(intent);
             finish();
             return;
@@ -829,6 +1216,12 @@ public class DummyActivity extends SecureActivity {
         if (getIntent().hasExtra("linkedPackages")) {
             String[] packages = getIntent().getStringArrayExtra("linkedPackages");
             boolean[] packagesShouldFreeze = getIntent().getBooleanArrayExtra("linkedPackagesShouldFreeze");
+            if (packages == null || packagesShouldFreeze == null
+                    || packages.length != packagesShouldFreeze.length
+                    || !validatePackageArray(packages, true)) {
+                finish();
+                return;
+            }
 
             for (int i = 0; i < packages.length; i++) {
                 // Unfreeze everything
@@ -844,6 +1237,10 @@ public class DummyActivity extends SecureActivity {
 
         // Here is the main package to launch
         String packageName = getIntent().getStringExtra("packageName");
+        if (!validatePackageName(packageName, true)) {
+            finish();
+            return;
+        }
 
         // Unfreeze the app first
         mPolicyManager.setApplicationHidden(
@@ -877,10 +1274,11 @@ public class DummyActivity extends SecureActivity {
         // after loading the full list to freeze
         if (!mIsProfileOwner) {
             Intent intent = new Intent(FREEZE_ALL_IN_LIST);
-            Utility.transferIntentToProfile(this, intent);
             String[] list = LocalStorageManager.getInstance()
                     .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE);
             intent.putExtra("list", list);
+            // Sign only after the complete list has been attached.
+            Utility.transferIntentToProfile(this, intent);
             startActivity(intent);
             finish();
         } else {
@@ -891,6 +1289,10 @@ public class DummyActivity extends SecureActivity {
     private void actionFreezeAllInList() {
         if (mIsProfileOwner) {
             String[] list = getIntent().getStringArrayExtra("list");
+            if (!validatePackageArray(list, true)) {
+                finish();
+                return;
+            }
             for (String pkg : list) {
                 mPolicyManager.setApplicationHidden(
                         new ComponentName(this, ShelterDeviceAdminReceiver.class),
