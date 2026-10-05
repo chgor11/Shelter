@@ -85,7 +85,8 @@
             android:name=".ui.SettingsActivity"
             android:label="@string/settings"
             android:resizeableActivity="false"
-            android:supportsPictureInPicture="false" />
+            android:supportsPictureInPicture="false"
+            android:exported="false"/>
 
         <!-- An activity that wraps intents that cross the profile boundary -->
         <!-- Needed because only cross-profile Activity intents are supported -->
@@ -209,11 +210,13 @@
 
         <!-- A hack service to ensure every ShelterService is killed when App is removed -->
         <!-- from recent tasks -->
-        <service android:name=".services.KillerService" />
+        <service android:name=".services.KillerService"
+            android:exported="false"/>
 
         <!-- Service to freeze apps on screen lock -->
         <service android:name=".services.FreezeService"
-            android:foregroundServiceType="systemExempted" />
+            android:foregroundServiceType="systemExempted"
+            android:exported="false"/>
 
         <!--
              Main-profile Accessibility security monitor.
