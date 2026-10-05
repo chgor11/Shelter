@@ -10,6 +10,7 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Build;
 import android.util.Log;
+import androidx.core.content.ContextCompat;
 
 import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
 
@@ -64,18 +65,12 @@ public class WorkProfileSecurityService extends DeviceAdminService {
          * ACTION_SCREEN_OFF is intentionally registered at runtime.
          * It must not be added as a manifest implicit broadcast receiver.
          */
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            registerReceiver(
-                    mScreenOffReceiver,
-                    new IntentFilter(Intent.ACTION_SCREEN_OFF),
-                    Context.RECEIVER_NOT_EXPORTED
-            );
-        } else {
-            registerReceiver(
-                    mScreenOffReceiver,
-                    new IntentFilter(Intent.ACTION_SCREEN_OFF)
-            );
-        }
+        ContextCompat.registerReceiver(
+                this,
+                mScreenOffReceiver,
+                new IntentFilter(Intent.ACTION_SCREEN_OFF),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+        );
 
         /*
          * One state snapshot per DeviceAdminService lifetime.
