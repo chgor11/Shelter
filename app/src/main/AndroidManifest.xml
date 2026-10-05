@@ -3,6 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:installLocation="internalOnly" >
 
+    <permission
+    android:name="net.typeblog.shelter.permission.INTERNAL_IPC"
+    android:protectionLevel="signature" />
+
     <uses-feature android:name="android.software.device_admin" android:required="true"/>
     <uses-feature android:name="android.software.managed_users" android:required="true"/>
 
@@ -87,7 +91,8 @@
             android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar"
             android:resizeableActivity="false"
             android:supportsPictureInPicture="false"
-            android:exported="true">
+            android:exported="true"
+            android:permission="net.typeblog.shelter.permission.INTERNAL_IPC">
             <intent-filter>
                 <action android:name="net.typeblog.shelter.action.FINALIZE_PROVISION" />
                 <action android:name="net.typeblog.shelter.action.START_SERVICE" />
@@ -114,6 +119,7 @@
             android:name=".ui.DummyActivity$WorkProfileAuthenticationActivity"
             android:excludeFromRecents="true"
             android:exported="true"
+            android:permission="net.typeblog.shelter.permission.INTERNAL_IPC"
             android:resizeableActivity="false"
             android:supportsPictureInPicture="false"
             android:theme="@style/Theme.AppCompat.Translucent.NoTitleBar">
