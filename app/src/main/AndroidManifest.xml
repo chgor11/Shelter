@@ -7,6 +7,10 @@
     android:name="net.typeblog.shelter.permission.INTERNAL_IPC"
     android:protectionLevel="signature" />
 
+    <permission
+        android:name="net.typeblog.shelter.permission.INTERNAL_UI"
+        android:protectionLevel="signature|system" />
+
     <uses-feature android:name="android.software.device_admin" android:required="true"/>
     <uses-feature android:name="android.software.managed_users" android:required="true"/>
 
@@ -51,7 +55,8 @@
             android:launchMode="singleTask"
             android:resizeableActivity="false"
             android:supportsPictureInPicture="false"
-            android:exported="true">
+            android:exported="true"
+            android:permission="net.typeblog.shelter.permission.INTERNAL_UI">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
