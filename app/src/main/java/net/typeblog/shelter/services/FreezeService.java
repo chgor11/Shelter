@@ -75,7 +75,7 @@ public class FreezeService extends Service {
             mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                     System.currentTimeMillis() + ((long) SettingsManager.getInstance().getAutoFreezeDelay()) * 1000,
                     null, mFreezeWork, null);
-            ContextCompat.registerReceiver(this, mUnlockReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED);
+            ContextCompat.registerReceiver(FreezeService.this, mUnlockReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED);
         }
     };
 
