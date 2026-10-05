@@ -13,6 +13,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.IBinder;
+import androidx.core.content.ContextCompat;
 
 import androidx.annotation.Nullable;
 
@@ -74,7 +75,7 @@ public class FreezeService extends Service {
             mAlarmManager.set(AlarmManager.RTC_WAKEUP,
                     System.currentTimeMillis() + ((long) SettingsManager.getInstance().getAutoFreezeDelay()) * 1000,
                     null, mFreezeWork, null);
-            registerReceiver(mUnlockReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON));
+            ContextCompat.registerReceiver(this, mUnlockReceiver, new IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED);
         }
     };
 
@@ -131,7 +132,7 @@ public class FreezeService extends Service {
         super.onCreate();
         mAlarmManager = getSystemService(AlarmManager.class);
         // This is the only thing that we do
-        registerReceiver(mLockReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF));
+        ContextCompat.registerReceiver(this, mLockReceiver, new IntentFilter(Intent.ACTION_SCREEN_OFF), ContextCompat.RECEIVER_NOT_EXPORTED);
         // Use foreground notification to keep this service alive until screen is locked
         setForeground();
     }
