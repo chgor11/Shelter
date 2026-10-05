@@ -9,7 +9,7 @@
 
     <permission
         android:name="net.typeblog.shelter.permission.INTERNAL_UI"
-        android:protectionLevel="signature|system" />
+        android:protectionLevel="signature|privileged" />
 
     <uses-feature android:name="android.software.device_admin" android:required="true"/>
     <uses-feature android:name="android.software.managed_users" android:required="true"/>
