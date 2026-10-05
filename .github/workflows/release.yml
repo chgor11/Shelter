@@ -290,7 +290,6 @@ jobs:
 
           test -n "$KEYSTORE_PASSWORD"
           test -n "$KEY_ALIAS"
-          test -n "$RELEASE_CERT_SHA256"
 
           keytool -list \
             -keystore "$RUNNER_TEMP/shelter.keystore" \
