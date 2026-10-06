@@ -375,6 +375,7 @@ jobs:
             --ks-pass env:ANDROID_KEYSTORE_PASSWORD \
             --ks-key-alias "$ANDROID_KEY_ALIAS" \
             --key-pass env:ANDROID_KEY_PASSWORD \
+            --min-sdk-version 23 \
             --v1-signing-enabled true \
             --v2-signing-enabled true \
             --v3-signing-enabled true \
@@ -404,10 +405,11 @@ jobs:
 
           VERIFY_OUTPUT=$("$APKSIGNER" verify \
             --verbose \
+            --min-sdk-version 23 \
             --v4-signature-file "$IDSIG" \
             "$APK" 2>&1)
 
-          echo "===== apksigner verification ====="
+          echo "===== apksigner verification (minimum API 23 for V1 check) ====="
           echo "$VERIFY_OUTPUT"
 
           for SCHEME in v1 v2 v3 v4; do
@@ -425,6 +427,7 @@ jobs:
           fi
 
           echo "OK: V1, V2, V3 and V4 signatures verified."
+          echo "OK: V1 was checked against API 23; the manifest minSdk remains 24."
           echo "OK: APK has exactly one signer."
 
       # --------------------------------------------------------
@@ -444,6 +447,7 @@ jobs:
 
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify \
             --verbose \
+            --min-sdk-version 23 \
             --print-certs \
             --v4-signature-file "${APK}.idsig" \
             "$APK"
@@ -579,6 +583,7 @@ jobs:
 
           VERIFY_OUTPUT=$("$APKSIGNER" verify \
             --verbose \
+            --min-sdk-version 23 \
             --print-certs \
             --v4-signature-file "$IDSIG" \
             "$APK" 2>&1)
@@ -614,7 +619,7 @@ jobs:
           APK=$(find release/signed-release -type f -name "*.apk" | head -n 1)
           test -n "$APK"
           echo "===== Final APK signing certificate ====="
-          "$APKSIGNER" verify --verbose --print-certs --v4-signature-file "${APK}.idsig" "$APK"
+          "$APKSIGNER" verify --verbose --min-sdk-version 23 --print-certs --v4-signature-file "${APK}.idsig" "$APK"
 
       # --------------------------------------------------------
       # نمایش Hashها
