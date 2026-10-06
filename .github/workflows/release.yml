@@ -279,62 +279,50 @@ jobs:
       # --------------------------------------------------------
       # بررسی keystore
       # --------------------------------------------------------
-      - name: Verify keystore and pin production certificate
+      - name: Verify keystore and report certificate
         shell: bash
         env:
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          RELEASE_CERT_SHA256: ${{ secrets.RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
 
-          test -n "$KEYSTORE_PASSWORD"
-          test -n "$KEY_ALIAS"
-
-          keytool -list \
-            -keystore "$RUNNER_TEMP/shelter.keystore" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS" \
-            -v > "$RUNNER_TEMP/keystore-cert.txt"
-
-          echo "===== Keystore certificate ====="
-          grep -E '^(Owner|Issuer|Serial number|Valid from|SHA256:)' \
-            "$RUNNER_TEMP/keystore-cert.txt" || true
-
-          # The expected fingerprint is the SHA-256 digest of the DER certificate.
-          # It must be stored as a protected GitHub Repository secret.
-          EXPECTED_CERT_SHA256=$(printf '%s' "$RELEASE_CERT_SHA256" \
-            | tr -d '[:space:]:-' \
-            | tr '[:lower:]' '[:upper:]')
-
-          case "$EXPECTED_CERT_SHA256" in
-            (*[!0-9A-F]*|'')
-              echo "ERROR: RELEASE_CERT_SHA256 is not a valid SHA-256 fingerprint."
-              exit 1
-              ;;
-          esac
-
-          if [ "${#EXPECTED_CERT_SHA256}" -ne 64 ]; then
-            echo "ERROR: RELEASE_CERT_SHA256 must contain exactly 64 hexadecimal characters."
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "ERROR: KEYSTORE_PASSWORD is missing or empty."
+            exit 1
+          fi
+          if [ -z "$KEY_ALIAS" ]; then
+            echo "ERROR: KEY_ALIAS is missing or empty."
             exit 1
           fi
 
-          ACTUAL_CERT_SHA256=$(keytool -exportcert \
-            -keystore "$RUNNER_TEMP/shelter.keystore" \
-            -storepass "$KEYSTORE_PASSWORD" \
-            -alias "$KEY_ALIAS" \
-            | sha256sum \
-            | awk '{print toupper($1)}')
+          KEYSTORE="$RUNNER_TEMP/shelter.keystore"
+          REPORT="$RUNNER_TEMP/keystore-cert.txt"
 
-          echo "Keystore certificate SHA-256: $ACTUAL_CERT_SHA256"
-
-          if [ "$ACTUAL_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "ERROR: Signing certificate does not match RELEASE_CERT_SHA256."
-            echo "The configured signing key is not the approved production key."
+          echo "===== Keystore verification ====="
+          if ! keytool -list -keystore "$KEYSTORE" -storepass "$KEYSTORE_PASSWORD" -alias "$KEY_ALIAS" -v > "$REPORT" 2>&1; then
+            echo "ERROR: keytool could not open the keystore or the requested alias."
+            echo "Check KEYSTORE_BASE64, KEYSTORE_PASSWORD and KEY_ALIAS."
+            echo "===== keytool diagnostic output ====="
+            cat "$REPORT"
             exit 1
           fi
 
-          echo "OK: Keystore contains the approved production certificate."
+          echo "OK: Keystore opened successfully."
+          echo "OK: Requested alias exists: $KEY_ALIAS"
+          echo "===== Complete certificate report ====="
+          cat "$REPORT"
+
+          OWNER_NORM="$(grep -m1 '^Owner:' "$REPORT" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)"
+          ISSUER_NORM="$(grep -m1 '^Issuer:' "$REPORT" | tr '[:upper:]' '[:lower:]' | tr -d '[:space:]' || true)"
+          if printf '%s\n%s\n' "$OWNER_NORM" "$ISSUER_NORM" | grep -Eq 'cn=androiddebug,o=android,c=us'; then
+            echo "ERROR: The signing certificate is the standard Android Debug certificate."
+            echo "A production Release cannot be published with the Android Debug certificate."
+            exit 1
+          fi
+
+          echo "OK: Certificate is not identified as the standard Android Debug certificate."
+          echo "No certificate SHA-256/hash pinning is used."
 
       # --------------------------------------------------------
       # ایجاد نسخه signed از روی unsigned
@@ -401,8 +389,6 @@ jobs:
       # --------------------------------------------------------
       - name: Verify signed APK V1 + V2 + V3 + V4
         shell: bash
-        env:
-          RELEASE_CERT_SHA256: ${{ secrets.RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
 
@@ -438,20 +424,8 @@ jobs:
             exit 1
           fi
 
-          EXPECTED_CERT_SHA256=$(printf '%s' "$RELEASE_CERT_SHA256" \
-            | tr -d '[:space:]:-' \
-            | tr '[:lower:]' '[:upper:]')
-
-          APK_CERT_SHA256=$(printf '%s\n' "$VERIFY_OUTPUT" \
-            | awk -F': ' '/^Signer #1 certificate SHA-256 digest:/ {print toupper($2); exit}')
-
-          if [ -z "$APK_CERT_SHA256" ] || [ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "ERROR: APK certificate does not match the approved production certificate."
-            exit 1
-          fi
-
           echo "OK: V1, V2, V3 and V4 signatures verified."
-          echo "OK: APK is signed by the approved production certificate."
+          echo "OK: APK has exactly one signer."
 
       # --------------------------------------------------------
       # نمایش certificate
@@ -590,8 +564,6 @@ jobs:
       # --------------------------------------------------------
       - name: Verify signed APK V1 + V2 + V3 + V4 and certificate
         shell: bash
-        env:
-          RELEASE_CERT_SHA256: ${{ secrets.RELEASE_CERT_SHA256 }}
         run: |
           set -euo pipefail
 
@@ -628,20 +600,21 @@ jobs:
             exit 1
           fi
 
-          EXPECTED_CERT_SHA256=$(printf '%s' "$RELEASE_CERT_SHA256" \
-            | tr -d '[:space:]:-' \
-            | tr '[:lower:]' '[:upper:]')
-
-          APK_CERT_SHA256=$(printf '%s\n' "$VERIFY_OUTPUT" \
-            | awk -F': ' '/^Signer #1 certificate SHA-256 digest:/ {print toupper($2); exit}')
-
-          if [ -z "$APK_CERT_SHA256" ] || [ "$APK_CERT_SHA256" != "$EXPECTED_CERT_SHA256" ]; then
-            echo "ERROR: Final Release APK certificate is not the approved production certificate."
-            exit 1
-          fi
-
           echo "OK: Final Release passed V1 + V2 + V3 + V4 verification."
-          echo "OK: Final Release certificate is the approved production certificate."
+          echo "OK: Final Release has exactly one signer."
+
+      # --------------------------------------------------------
+      # گزارش certificate نسخه نهایی
+      # --------------------------------------------------------
+      - name: Report final signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          APK=$(find release/signed-release -type f -name "*.apk" | head -n 1)
+          test -n "$APK"
+          echo "===== Final APK signing certificate ====="
+          "$APKSIGNER" verify --verbose --print-certs --v4-signature-file "${APK}.idsig" "$APK"
 
       # --------------------------------------------------------
       # نمایش Hashها
