@@ -43,7 +43,7 @@ android {
 
     defaultConfig {
         applicationId "net.typeblog.shelter"
-        minSdkVersion 24
+        minSdkVersion 35
         targetSdkVersion 35
         versionCode getVersionCode()
         versionName getVersionName()
