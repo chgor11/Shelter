@@ -226,11 +226,6 @@ public final class ShelterAccessibilityService extends AccessibilityService {
     }
 
     @Override
-    public void onInterrupt() {
-        Log.w(TAG, "Accessibility service interrupted");
-    }
-
-    @Override
     public void onDestroy() {
         if (mHandler != null) {
             mHandler.removeCallbacksAndMessages(null);
