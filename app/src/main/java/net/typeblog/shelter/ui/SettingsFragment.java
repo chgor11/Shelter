@@ -47,8 +47,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
             "settings_auto_freeze_delay";
     private static final String SETTINGS_SKIP_FOREGROUND =
             "settings_dont_freeze_foreground";
-    private static final String SETTINGS_PAYMENT_STUB =
-            "settings_payment_stub";
     private static final String SETTINGS_WORK_TO_PERSONAL_CLIPBOARD =
             "settings_work_to_personal_clipboard";
     private static final String SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL =
@@ -66,7 +64,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private CheckBoxPreference mPrefBlockContactsSearching = null;
     private CheckBoxPreference mPrefAutoFreezeService = null;
     private CheckBoxPreference mPrefSkipForeground = null;
-    private CheckBoxPreference mPrefPaymentStub = null;
     private CheckBoxPreference mPrefWorkToPersonalClipboard = null;
     private CheckBoxPreference mPrefWorkProfileAppInstallUninstall = null;
 
@@ -238,18 +235,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
         );
 
         mPrefBlockContactsSearching
-                .setOnPreferenceChangeListener(this);
-
-        mPrefPaymentStub =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_PAYMENT_STUB
-                );
-
-        mPrefPaymentStub.setChecked(
-                mManager.getPaymentStubEnabled()
-        );
-
-        mPrefPaymentStub
                 .setOnPreferenceChangeListener(this);
 
         // Work Profile → Personal Profile clipboard
@@ -656,15 +641,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
             mManager.setSkipForegroundEnabled(
                     true
-            );
-
-            return true;
-
-        } else if (preference ==
-                mPrefPaymentStub) {
-
-            mManager.setPaymentStubEnabled(
-                    (boolean) newState
             );
 
             return true;
