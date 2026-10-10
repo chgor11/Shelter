@@ -5,7 +5,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 
-import net.typeblog.shelter.services.PaymentStubService;
 import net.typeblog.shelter.ui.DummyActivity;
 
 public class SettingsManager {
@@ -47,7 +46,6 @@ public class SettingsManager {
     // Enforce all settings
     public void applyAll() {
         applyCrossProfileFileChooser();
-        applyPaymentStub();
     }
 
     // Read and apply the enabled state of the cross profile file chooser
@@ -118,24 +116,6 @@ public class SettingsManager {
     // Get the enabled state of "skip foreground"
     public boolean getSkipForegroundEnabled() {
         return mStorage.getBoolean(LocalStorageManager.PREF_DONT_FREEZE_FOREGROUND);
-    }
-
-    public boolean getPaymentStubEnabled() {
-        return mStorage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB);
-    }
-
-    public void setPaymentStubEnabled(boolean enabled) {
-        mStorage.setBoolean(LocalStorageManager.PREF_PAYMENT_STUB, enabled);
-        applyPaymentStub();
-    }
-
-    // Enable / disable the payment stub component based on settings in local storage
-    public void applyPaymentStub() {
-        boolean enabled = mStorage.getBoolean(LocalStorageManager.PREF_PAYMENT_STUB);
-        mContext.getPackageManager().setComponentEnabledSetting(
-                new ComponentName(mContext, PaymentStubService.class),
-                enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                PackageManager.DONT_KILL_APP);
     }
 
     public void setWorkToPersonalClipboardEnabled(boolean enabled) {
