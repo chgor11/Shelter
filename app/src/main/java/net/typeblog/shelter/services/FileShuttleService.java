@@ -208,7 +208,6 @@ public class FileShuttleService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        android.util.Log.d("FileShuttleService", "being destroyed");
     }
 
     private String resolvePath(String path) {
