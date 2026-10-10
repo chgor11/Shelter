@@ -226,6 +226,11 @@ public final class ShelterAccessibilityService extends AccessibilityService {
     }
 
     @Override
+    public void onInterrupt() {
+        // empty
+    }
+
+    @Override
     public void onDestroy() {
         if (mHandler != null) {
             mHandler.removeCallbacksAndMessages(null);
