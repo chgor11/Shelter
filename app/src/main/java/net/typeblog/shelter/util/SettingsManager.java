@@ -154,4 +154,24 @@ public class SettingsManager {
         );
     }
 
+    // Allow changing app controls (for example, disable/force-stop) in Work Profile.
+    // Defaults to false, so DISALLOW_APPS_CONTROL remains enforced by default.
+    public void setWorkProfileAppsControlEnabled(boolean enabled) {
+        mStorage.setBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APPS_CONTROL,
+                enabled
+        );
+
+        syncSettingsToProfileBool(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APPS_CONTROL,
+                enabled
+        );
+    }
+
+    public boolean getWorkProfileAppsControlEnabled() {
+        return mStorage.getBoolean(
+                LocalStorageManager.PREF_ALLOW_WORK_PROFILE_APPS_CONTROL
+        );
+    }
+
 }
