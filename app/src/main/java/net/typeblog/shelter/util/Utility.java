@@ -177,13 +177,10 @@ public class Utility {
                 new IntentFilter(DummyActivity.START_FILE_SHUTTLE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
-        // Keep a second action as a resolver fallback, but route it in the SAME
-        // direction. Both actions may only travel Work Profile -> personal profile.
-        // Do not register this action with FLAG_PARENT_CAN_ACCESS_MANAGED.
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.START_FILE_SHUTTLE_2),
-                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         manager.addCrossProfileIntentFilter(
                 adminComponent,
