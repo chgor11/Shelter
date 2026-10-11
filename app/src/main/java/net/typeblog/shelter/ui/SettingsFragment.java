@@ -498,10 +498,18 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 boolean hasPermission =
                         ensureSpecialAccessPermission(
                                 () -> {
-                                    // File Shuttle reads the personal profile's storage.
-                                    // Do not require or request MANAGE_EXTERNAL_STORAGE
-                                    // in the Work Profile.
-                                    return Utility.checkAllFileAccessPermission();
+
+                                    try {
+
+                                        return mServiceWork
+                                                .hasAllFileAccessPermission()
+                                                && Utility
+                                                .checkAllFileAccessPermission();
+
+                                    } catch (RemoteException e) {
+
+                                        return false;
+                                    }
                                 },
                                 R.string.request_storage_manager,
                                 Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
@@ -527,10 +535,20 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 hasPermission =
                         ensureSpecialAccessPermission(
                                 () -> {
-                                    // The cross-profile request is launched by the
-                                    // personal-profile DummyActivity, so only its
-                                    // overlay permission is relevant here.
-                                    return Utility.checkSystemAlertPermission(getContext());
+
+                                    try {
+
+                                        return mServiceWork
+                                                .hasSystemAlertPermission()
+                                                && Utility
+                                                .checkSystemAlertPermission(
+                                                        getContext()
+                                                );
+
+                                    } catch (RemoteException e) {
+
+                                        return false;
+                                    }
                                 },
                                 R.string.request_system_alert,
                                 Settings.ACTION_MANAGE_OVERLAY_PERMISSION
