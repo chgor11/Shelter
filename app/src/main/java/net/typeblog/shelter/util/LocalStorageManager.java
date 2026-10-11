@@ -26,6 +26,9 @@ public class LocalStorageManager {
     public static final String PREF_ALLOW_WORK_PROFILE_APP_INSTALL_UNINSTALL =
             "allow_work_profile_app_install_uninstall";
 
+    public static final String PREF_ALLOW_WORK_PROFILE_APPS_CONTROL =
+            "allow_work_profile_apps_control";
+
     /*
      * SECURITY-CRITICAL:
      *
