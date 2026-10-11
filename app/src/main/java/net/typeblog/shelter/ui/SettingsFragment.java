@@ -501,10 +501,10 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
                                     try {
 
-                                        return mServiceWork
-                                                .hasAllFileAccessPermission()
-                                                && Utility
-                                                .checkAllFileAccessPermission();
+                                        // File Shuttle reads the personal profile's storage.
+                                        // Do not require or request MANAGE_EXTERNAL_STORAGE
+                                        // in the Work Profile.
+                                        return Utility.checkAllFileAccessPermission();
 
                                     } catch (RemoteException e) {
 
@@ -538,12 +538,10 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
                                     try {
 
-                                        return mServiceWork
-                                                .hasSystemAlertPermission()
-                                                && Utility
-                                                .checkSystemAlertPermission(
-                                                        getContext()
-                                                );
+                                        // The cross-profile request is launched by the
+                                        // personal-profile DummyActivity, so only its
+                                        // overlay permission is relevant here.
+                                        return Utility.checkSystemAlertPermission(getContext());
 
                                     } catch (RemoteException e) {
 
