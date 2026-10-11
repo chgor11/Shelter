@@ -231,8 +231,11 @@ public class DummyActivity extends SecureActivity {
             actionPublicFreezeAll();
         } else if (FREEZE_ALL_IN_LIST.equals(intent.getAction())) {
             actionFreezeAllInList();
-        } else if (START_FILE_SHUTTLE.equals(intent.getAction()) || START_FILE_SHUTTLE_2.equals(intent.getAction())) {
+        } else if (START_FILE_SHUTTLE.equals(intent.getAction())) {
             actionStartFileShuttle();
+        } else if (START_FILE_SHUTTLE_2.equals(intent.getAction())) {
+            // Legacy reverse-direction action is deliberately rejected.
+            finish();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
         } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
@@ -905,6 +908,12 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionStartFileShuttle() {
+        // The FileShuttleService must run in the personal profile, where the
+        // source files live. Never request storage access from the Work Profile.
+        if (mIsProfileOwner) {
+            finish();
+            return;
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             // This requires the permission WRITE_EXTERNAL_STORAGE
             if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
