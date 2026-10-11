@@ -231,11 +231,11 @@ public class DummyActivity extends SecureActivity {
             actionPublicFreezeAll();
         } else if (FREEZE_ALL_IN_LIST.equals(intent.getAction())) {
             actionFreezeAllInList();
-        } else if (START_FILE_SHUTTLE.equals(intent.getAction())) {
+        } else if (START_FILE_SHUTTLE.equals(intent.getAction())
+                || START_FILE_SHUTTLE_2.equals(intent.getAction())) {
+            // Both actions are aliases for Work -> personal file access.
+            // actionStartFileShuttle() rejects execution inside the Work Profile.
             actionStartFileShuttle();
-        } else if (START_FILE_SHUTTLE_2.equals(intent.getAction())) {
-            // Legacy reverse-direction action is deliberately rejected.
-            finish();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
         } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
