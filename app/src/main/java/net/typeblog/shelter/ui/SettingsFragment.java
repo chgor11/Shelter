@@ -51,6 +51,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
             "settings_work_to_personal_clipboard";
     private static final String SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL =
             "settings_work_profile_app_install_uninstall";
+    private static final String SETTINGS_WORK_PROFILE_APPS_CONTROL =
+            "settings_work_profile_apps_control";
 
     private static final int[] AUTO_FREEZE_DELAY_SECONDS =
             new int[]{0, 60, 2 * 60, 5 * 60};
@@ -66,6 +68,7 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private CheckBoxPreference mPrefSkipForeground = null;
     private CheckBoxPreference mPrefWorkToPersonalClipboard = null;
     private CheckBoxPreference mPrefWorkProfileAppInstallUninstall = null;
+    private CheckBoxPreference mPrefWorkProfileAppsControl = null;
 
     private DropDownPreference mPrefAutoFreezeDelay = null;
 
@@ -261,6 +264,19 @@ public class SettingsFragment extends PreferenceFragmentCompat
         );
 
         mPrefWorkProfileAppInstallUninstall
+                .setOnPreferenceChangeListener(this);
+
+        // Allow changing app controls in Work Profile
+        mPrefWorkProfileAppsControl =
+                (CheckBoxPreference) findPreference(
+                        SETTINGS_WORK_PROFILE_APPS_CONTROL
+                );
+
+        mPrefWorkProfileAppsControl.setChecked(
+                mManager.getWorkProfileAppsControlEnabled()
+        );
+
+        mPrefWorkProfileAppsControl
                 .setOnPreferenceChangeListener(this);
 
         // === Services ===
@@ -571,6 +587,15 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 mPrefWorkProfileAppInstallUninstall) {
 
             mManager.setWorkProfileAppInstallUninstallEnabled(
+                    (boolean) newState
+            );
+
+            return true;
+
+        } else if (preference ==
+                mPrefWorkProfileAppsControl) {
+
+            mManager.setWorkProfileAppsControlEnabled(
                     (boolean) newState
             );
 
