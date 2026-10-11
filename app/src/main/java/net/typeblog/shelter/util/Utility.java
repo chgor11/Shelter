@@ -332,7 +332,7 @@ public class Utility {
             );
         }
 
-        // Control clipboard export from Work Profile to Personal Profile.
+        // Control clipboard export from Work Profile to Personal Profile. & Prevent app modification through Settings and launchers.
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             boolean allowWorkToPersonalClipboard =
                     SettingsManager.getInstance()
@@ -349,8 +349,13 @@ public class Utility {
                         UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
                 );
             }
+
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_APPS_CONTROL
+            );
+
         }
-    }
 
     // Detect if the device is MIUI
     public static boolean isMIUI() {
