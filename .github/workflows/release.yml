@@ -112,6 +112,100 @@ jobs:
           ./gradlew clean assembleRelease
 
       # --------------------------------------------------------
+      # TEMPORARY: package all build dependencies for offline use
+      # This archive is an artifact; do not commit it to Git directly.
+      # --------------------------------------------------------
+      - name: Collect offline build bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          BUNDLE="$GITHUB_WORKSPACE/offline-bundle"
+          mkdir -p "$BUNDLE/gradle-home" "$BUNDLE/android-sdk" "$BUNDLE/libs"
+
+          # Preserve Gradle's dependency artifacts and metadata, plus Wrapper distributions.
+          if [ -d "$HOME/.gradle/caches" ]; then
+            mkdir -p "$BUNDLE/gradle-home/caches"
+            cp -a "$HOME/.gradle/caches/." "$BUNDLE/gradle-home/caches/"
+          fi
+          if [ -d "$HOME/.gradle/wrapper/dists" ]; then
+            mkdir -p "$BUNDLE/gradle-home/wrapper/dists"
+            cp -a "$HOME/.gradle/wrapper/dists/." "$BUNDLE/gradle-home/wrapper/dists/"
+          fi
+
+          # Include only SDK packages required by this project's configured build tools,
+          # plus licenses and platform-tools when present.
+          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+          test -n "$SDK_ROOT"
+          for REL in \
+            platforms/android-35 \
+            build-tools/35.0.0 \
+            platform-tools \
+            licenses; do
+            if [ -d "$SDK_ROOT/$REL" ]; then
+              mkdir -p "$BUNDLE/android-sdk/$(dirname "$REL")"
+              cp -a "$SDK_ROOT/$REL" "$BUNDLE/android-sdk/$REL"
+            fi
+          done
+
+          # The project includes this source as a Git submodule; preserve it for offline builds.
+          test -d libs/SetupWizardLibrary/library
+          mkdir -p "$BUNDLE/libs/SetupWizardLibrary"
+          cp -a libs/SetupWizardLibrary/. "$BUNDLE/libs/SetupWizardLibrary/"
+
+          cat > "$BUNDLE/README-OFFLINE.txt" <<'EOF'
+          Shelter offline build dependency bundle
+          =======================================
+          Generated on GitHub Actions after a successful Gradle release build.
+
+          Requirements:
+          - A compatible JDK 17 installation on the offline computer.
+          - The Shelter source checkout matching the commit that generated this bundle.
+          - Extract this bundle beside/in the source tree, then set paths as shown below.
+
+          Linux example (from the Shelter repository root, after extracting this archive to ./offline-bundle):
+            export GRADLE_USER_HOME="$PWD/offline-bundle/gradle-home"
+            export ANDROID_HOME="$PWD/offline-bundle/android-sdk"
+            export ANDROID_SDK_ROOT="$ANDROID_HOME"
+            ./gradlew --offline --no-daemon assembleRelease
+
+          The Gradle cache can contain machine/OS-specific transformed artifacts. This bundle
+          is intended first for Linux x86_64 environments similar to the GitHub Actions runner.
+          If Gradle reports a missing dependency, the online build did not cache that artifact,
+          or a plugin/configuration resolves an additional dependency on the offline machine.
+
+          Do not commit this archive directly to normal Git history: it may be very large.
+          Prefer a GitHub Actions artifact, Git LFS, or a release asset. Keep the source commit
+          and this bundle paired.
+          EOF
+
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "java_version=17"
+            echo "gradle_distribution=8.7-all"
+            echo "android_gradle_plugin=8.6.0"
+            echo "compile_sdk=35"
+            echo "build_tools=35.0.0"
+            echo "generated_utc=$(date -u +%FT%TZ)"
+          } > "$BUNDLE/BUILD-ENVIRONMENT.txt"
+
+          # Record hashes of all files, excluding the hash list itself.
+          (cd "$BUNDLE" && find . -type f ! -name SHA256SUMS -print0 \
+            | sort -z | xargs -0 sha256sum) > "$BUNDLE/SHA256SUMS"
+
+          tar -czf "$GITHUB_WORKSPACE/shelter-offline-bundle-${GITHUB_SHA::12}.tar.gz" \
+            -C "$GITHUB_WORKSPACE" offline-bundle
+          ls -lh "$GITHUB_WORKSPACE/shelter-offline-bundle-${GITHUB_SHA::12}.tar.gz"
+
+      - name: Upload offline dependency bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: shelter-offline-dependency-bundle
+          path: shelter-offline-bundle-*.tar.gz
+          if-no-files-found: error
+          retention-days: 14
+
+      # --------------------------------------------------------
       # پیدا کردن APK
       # --------------------------------------------------------
       - name: Locate APK
