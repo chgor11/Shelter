@@ -54,7 +54,11 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
     private final Object mLock = new Object();
 
     private void doBindService() {
-        // Call DummyActivity on the other side to bind the service for us
+        // This provider is intended to run only in the Work Profile. It must
+        // always request the service from the parent/personal profile.
+        if (!Utility.isProfileOwner(getContext())) {
+            throw new IllegalStateException("File Shuttle provider must run in the Work Profile");
+        }
         Intent intent = new Intent(DummyActivity.START_FILE_SHUTTLE);
         Bundle extra = new Bundle();
         extra.putBinder("callback", new IFileShuttleServiceCallback.Stub() {
@@ -71,12 +75,9 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
         try {
             Utility.transferIntentToProfile(getContext(), intent);
         } catch (IllegalStateException e) {
-            // Try with the other action.
-            // We use distinct intent for parent -> profile and profile -> parent,
-            // to avoid the action chooser dialog
-            // so as a dirty hack here, we just try the other if one is not found.
-            intent.setAction(DummyActivity.START_FILE_SHUTTLE_2);
-            Utility.transferIntentToProfile(getContext(), intent);
+            // Fail closed. Do not fall back to the reverse (parent -> Work Profile)
+            // shuttle action: only personal storage may be exposed to Work Profile.
+            throw e;
         }
         getContext().startActivity(intent);
 
@@ -114,11 +115,16 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
 
     @Override
     public boolean onCreate() {
-        return true;
+        // Defense in depth: even if the component is accidentally enabled in
+        // the parent profile, never expose a root there.
+        return Utility.isProfileOwner(getContext());
     }
 
     @Override
     public Cursor queryRoots(String[] projection) {
+        if (!Utility.isProfileOwner(getContext())) {
+            return new MatrixCursor(projection == null ? DEFAULT_ROOT_PROJECTION : projection);
+        }
         final MatrixCursor result = new MatrixCursor(projection == null ? DEFAULT_ROOT_PROJECTION : projection);
         final MatrixCursor.RowBuilder row = result.newRow();
         row.add(DocumentsContract.Root.COLUMN_ROOT_ID, DUMMY_ROOT);
