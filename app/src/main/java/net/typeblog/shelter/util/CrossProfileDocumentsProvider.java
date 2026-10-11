@@ -75,9 +75,10 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
         try {
             Utility.transferIntentToProfile(getContext(), intent);
         } catch (IllegalStateException e) {
-            // Fail closed. Do not fall back to the reverse (parent -> Work Profile)
-            // shuttle action: only personal storage may be exposed to Work Profile.
-            throw e;
+            // Resolver fallback only. START_FILE_SHUTTLE_2 is registered with
+            // the same Work -> personal direction, never parent -> Work.
+            intent.setAction(DummyActivity.START_FILE_SHUTTLE_2);
+            Utility.transferIntentToProfile(getContext(), intent);
         }
         getContext().startActivity(intent);
 
