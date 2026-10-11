@@ -51,9 +51,13 @@ public class SettingsManager {
     // Read and apply the enabled state of the cross profile file chooser
     public void applyCrossProfileFileChooser() {
         boolean enabled = mStorage.getBoolean(LocalStorageManager.PREF_CROSS_PROFILE_FILE_CHOOSER);
+        // The document provider must exist only in the managed/work profile.
+        // It exposes the parent (personal) profile's storage to work apps.
+        // Enabling it in the parent profile would create the reverse direction.
+        boolean shouldEnable = enabled && Utility.isProfileOwner(mContext);
         mContext.getPackageManager().setComponentEnabledSetting(
                 new ComponentName(mContext, CrossProfileDocumentsProvider.class),
-                enabled ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                shouldEnable ? PackageManager.COMPONENT_ENABLED_STATE_ENABLED : PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
                 PackageManager.DONT_KILL_APP);
     }
 
