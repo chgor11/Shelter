@@ -177,10 +177,8 @@ public class Utility {
                 new IntentFilter(DummyActivity.START_FILE_SHUTTLE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                new IntentFilter(DummyActivity.START_FILE_SHUTTLE_2),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+        // Intentionally do not register START_FILE_SHUTTLE_2. File Shuttle is
+        // one-way: the Work Profile may access personal storage, never vice versa.
 
         manager.addCrossProfileIntentFilter(
                 adminComponent,
