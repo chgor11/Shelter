@@ -905,6 +905,13 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionStartFileShuttle() {
+        // FileShuttleService must access the storage of the Personal Profile.
+        // The Work Profile only hosts the DocumentsProvider and needs neither
+        // all-files access nor overlay permission.
+        if (Utility.isProfileOwner(this)) {
+            doStartFileShuttle();
+            return;
+        }
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
             // This requires the permission WRITE_EXTERNAL_STORAGE
             if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
