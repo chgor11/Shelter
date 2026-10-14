@@ -491,69 +491,43 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 return true;
             }
 
-            if (Build.VERSION.SDK_INT >=
-                    Build.VERSION_CODES.R) {
-
-                // Request all files permission on R and beyond
-                boolean hasPermission =
-                        ensureSpecialAccessPermission(
-                                () -> {
-
-                                    try {
-
-                                        return mServiceWork
-                                                .hasAllFileAccessPermission()
-                                                && Utility
-                                                .checkAllFileAccessPermission();
-
-                                    } catch (RemoteException e) {
-
-                                        return false;
-                                    }
-                                },
-                                R.string.request_storage_manager,
-                                Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                        );
-
+            // The Work Profile provider reads files from the Personal Profile.
+            // Therefore special storage/overlay access is needed only in the
+            // Personal Profile instance; never request these permissions in Work.
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    && !Utility.isProfileOwner(requireContext())) {
+                boolean hasPermission = ensureSpecialAccessPermission(
+                        () -> {
+                            try {
+                                // When this UI runs in Work, mServiceWork is the
+                                // Personal Profile service. Otherwise check locally.
+                                return Utility.isProfileOwner(requireContext())
+                                        ? mServiceWork.hasAllFileAccessPermission()
+                                        : Utility.checkAllFileAccessPermission();
+                            } catch (RemoteException e) {
+                                return false;
+                            }
+                        },
+                        R.string.request_storage_manager,
+                        Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
+                );
                 if (!hasPermission) {
                     return false;
                 }
 
-                // Also needs system alert window permission
-                // because File Shuttle needs to start activities
-                // in the background
-                //
-                // We cannot do the same notification trick as in
-                // initial setup because it would be too annoying
-                // having to click a notification every time a user
-                // tries to use File Shuttle.
-                //
-                // NOTE:
-                // Enabling this permission may mask some bugs with
-                // background activities. Always test with this disabled.
-
-                hasPermission =
-                        ensureSpecialAccessPermission(
-                                () -> {
-
-                                    try {
-
-                                        return mServiceWork
-                                                .hasSystemAlertPermission()
-                                                && Utility
-                                                .checkSystemAlertPermission(
-                                                        getContext()
-                                                );
-
-                                    } catch (RemoteException e) {
-
-                                        return false;
-                                    }
-                                },
-                                R.string.request_system_alert,
-                                Settings.ACTION_MANAGE_OVERLAY_PERMISSION
-                        );
-
+                hasPermission = ensureSpecialAccessPermission(
+                        () -> {
+                            try {
+                                return Utility.isProfileOwner(requireContext())
+                                        ? mServiceWork.hasSystemAlertPermission()
+                                        : Utility.checkSystemAlertPermission(requireContext());
+                            } catch (RemoteException e) {
+                                return false;
+                            }
+                        },
+                        R.string.request_system_alert,
+                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION
+                );
                 if (!hasPermission) {
                     return false;
                 }
