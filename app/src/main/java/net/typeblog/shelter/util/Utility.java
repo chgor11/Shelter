@@ -172,14 +172,6 @@ public class Utility {
                 new IntentFilter(DummyActivity.FINALIZE_PROVISION),
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
-        // Parent-profile UI may request a single, authenticated parent-keyguard
-        // policy change. DummyActivity validates the signed Intent and applies
-        // the operation only in the Work Profile Owner process.
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_FEATURE),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
-
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.START_FILE_SHUTTLE),
@@ -692,35 +684,114 @@ public class Utility {
         }
     }
 
-    /**
-     * Apply one parent-profile keyguard feature from the Work Profile Owner.
-     * Only the four explicitly supported flags are accepted. The caller must
-     * already have authenticated the signed cross-profile request.
-     */
-    public static boolean setParentKeyguardFeature(
-            Context context, int feature, boolean disabled) {
-        DevicePolicyManager manager = context.getSystemService(DevicePolicyManager.class);
-        if (manager == null || !manager.isProfileOwnerApp(context.getPackageName())
-                || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
-            return false;
+    public static void enforceParentKeyguardPolicies(Context context) {
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        if (manager == null) {
+            return;
         }
-        if (feature != DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
-                && feature != DevicePolicyManager.KEYGUARD_DISABLE_FACE
-                && feature != DevicePolicyManager.KEYGUARD_DISABLE_IRIS
-                && feature != DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS) {
-            return false;
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
+        // This method must be called from the Work Profile,
+        // where Shelter is the Profile Owner.
+        if (!manager.isProfileOwnerApp(context.getPackageName())) {
+            return;
         }
-        ComponentName admin = new ComponentName(
-                context.getApplicationContext(), ShelterDeviceAdminReceiver.class);
+    
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            try {
+                DevicePolicyManager parentManager =
+                        manager.getParentProfileInstance(adminComponent);
+    
+                int keyguardFlags =
+                        DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
+                        | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                        | DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                        | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+    
+                parentManager.setKeyguardDisabledFeatures(
+                        adminComponent,
+                        keyguardFlags
+                );
+    
+            } catch (SecurityException e) {
+                // ignore
+            }
+        }
+    }
+
+    public static void resetParentKeyguardPolicy(
+            Context context,
+            int policyToRemove) {
+    
+        DevicePolicyManager manager =
+                context.getSystemService(DevicePolicyManager.class);
+    
+        if (manager == null ||
+                !manager.isProfileOwnerApp(context.getPackageName())) {
+            return;
+        }
+    
+        ComponentName adminComponent =
+                new ComponentName(
+                        context.getApplicationContext(),
+                        ShelterDeviceAdminReceiver.class
+                );
+    
         try {
-            DevicePolicyManager parent = manager.getParentProfileInstance(admin);
-            int current = parent.getKeyguardDisabledFeatures(admin);
-            int updated = disabled ? (current | feature) : (current & ~feature);
-            parent.setKeyguardDisabledFeatures(admin, updated);
-            return (parent.getKeyguardDisabledFeatures(admin) & feature) == (disabled ? feature : 0);
-        } catch (SecurityException | IllegalArgumentException e) {
-            return false;
+            DevicePolicyManager parentManager =
+                    manager.getParentProfileInstance(adminComponent);
+    
+            int current =
+                    parentManager.getKeyguardDisabledFeatures(
+                            adminComponent
+                    );
+    
+            int remaining =
+                    current & ~policyToRemove;
+    
+            parentManager.setKeyguardDisabledFeatures(
+                    adminComponent,
+                    remaining
+            );
+    
+        } catch (SecurityException e) {
+            // ignore
         }
+    }
+
+    public static void resetParentTrustAgents(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
+        );
+    }
+
+    public static void resetParentFingerprint(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+        );
+    }
+
+    public static void resetParentFace(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_FACE
+        );
+    }
+
+    public static void resetParentIris(Context context) {
+        resetParentKeyguardPolicy(
+                context,
+                DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+        );
     }
 
 }
