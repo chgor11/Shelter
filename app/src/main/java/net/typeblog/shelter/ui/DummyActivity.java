@@ -80,6 +80,7 @@ public class DummyActivity extends SecureActivity {
      * unsigned-action allow-list.
      */
     public static final String APPLY_MAXIMUM_WORK_PROFILE_SECURITY = "net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
+    public static final String APPLY_PARENT_KEYGUARD_POLICIES = "net.typeblog.shelter.action.APPLY_PARENT_KEYGUARD_POLICIES";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
@@ -138,6 +139,7 @@ public class DummyActivity extends SecureActivity {
                     START_FILE_SHUTTLE_2,
                     SYNCHRONIZE_PREFERENCE,
                     APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
+                    APPLY_PARENT_KEYGUARD_POLICIES,
                     INSTALL_PACKAGE,
                     UNINSTALL_PACKAGE,
                     UNFREEZE_AND_LAUNCH);
@@ -239,6 +241,8 @@ public class DummyActivity extends SecureActivity {
             actionSecurityResponse();
         } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
             actionApplyMaximumWorkProfileSecurity();
+        } else if (APPLY_PARENT_KEYGUARD_POLICIES.equals(intent.getAction())) {
+            actionApplyParentKeyguardPolicies();
         } else {
             finish();
         }
@@ -1182,43 +1186,41 @@ public class DummyActivity extends SecureActivity {
         finish();
     }
 
-    private void actionSecurityResponse() {
-    
-        if (!mIsProfileOwner) {
+    /** Applies reversible parent-profile lock-screen restrictions requested by the authenticated policy transaction. */
+    private void actionApplyParentKeyguardPolicies() {
+        if (!mIsProfileOwner || mPolicyManager == null) {
             finish();
             return;
         }
-    
-        ComponentName admin =
-                new ComponentName(
-                        this,
-                        ShelterDeviceAdminReceiver.class
-                );
-    
+        ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
         try {
-            DevicePolicyManager parentManager =
-                    mPolicyManager.getParentProfileInstance(admin);
-    
-            int keyguardFlags =
-                    DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
-                    | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+            DevicePolicyManager parentManager = mPolicyManager.getParentProfileInstance(admin);
+            int mask = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
                     | DevicePolicyManager.KEYGUARD_DISABLE_FACE
-                    | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-    
-            try {
-                parentManager.setKeyguardDisabledFeatures(
-                        admin,
-                        keyguardFlags
-                );
-
-            } catch (SecurityException e) {
-                finish();
+                    | DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+                    | DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+            int current = parentManager.getKeyguardDisabledFeatures(admin);
+            int desired = current & ~mask;
+            Intent request = getIntent();
+            if (request.getBooleanExtra("disable_fingerprint", false)) desired |= DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+            if (request.getBooleanExtra("disable_face", false)) desired |= DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+            if (request.getBooleanExtra("disable_iris", false)) desired |= DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+            if (request.getBooleanExtra("disable_trust_agents", false)) desired |= DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+            parentManager.setKeyguardDisabledFeatures(admin, desired);
+            int applied = parentManager.getKeyguardDisabledFeatures(admin);
+            if ((applied & mask) != (desired & mask)) {
+                android.util.Log.e("Shelter", "Parent keyguard policy read-back verification failed");
             }
-
-        } catch (SecurityException e) {
-            finish();
+        } catch (RuntimeException e) {
+            android.util.Log.e("Shelter", "Unable to apply parent keyguard policies", e);
         }
-    
+        finish();
+    }
+
+    private void actionSecurityResponse() {
+        // The device-admin lifecycle response must not impose one-way
+        // keyguard restrictions. Those four controls are now reversible
+        // and are applied only through the authenticated Security Policy flow.
         finish();
     }
 }
