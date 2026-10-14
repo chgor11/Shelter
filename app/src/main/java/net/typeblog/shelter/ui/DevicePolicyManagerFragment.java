@@ -18,6 +18,7 @@ import android.content.SharedPreferences;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.util.SecurityPolicyChangeManager;
+import net.typeblog.shelter.util.Utility;
 
 /*
  * SECURITY POLICY ADMINISTRATION RULE
@@ -57,6 +58,7 @@ public class DevicePolicyManagerFragment
         extends PreferenceFragmentCompat {
 
     private static final int REQUEST_POLICY_AUTH = 9001;
+    private static final int REQUEST_WORK_PROFILE_POLICY_AUTH = 9002;
 
     private static final String PREF_DEVICE_LOCK_DELAY =
             "device_lock_delay";
@@ -591,36 +593,39 @@ public class DevicePolicyManagerFragment
                 data
         );
 
-        if (requestCode ==
-                REQUEST_POLICY_AUTH) {
-
-            if (resultCode ==
-                    android.app.Activity.RESULT_OK) {
-
-                /*
-                 * Authentication is valid only
-                 * for this current transaction.
-                 */
-                mChangeManager
-                        .authorizeCurrentTransaction();
-
-                /*
-                 * This is the ONLY point where the
-                 * pending security operations are allowed
-                 * to execute.
-                 */
-                mChangeManager
-                        .applyAuthenticatedChanges();
-
+        if (requestCode == REQUEST_POLICY_AUTH) {
+            if (resultCode == android.app.Activity.RESULT_OK) {
+                // Personal-profile device credential is required first. Sensitive
+                // Work Profile operations also require a fresh lease created only
+                // inside the Work Profile process after its credential succeeds.
+                Intent workAuth = new Intent(DummyActivity.AUTHENTICATE_WORK_PROFILE);
+                workAuth.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
+                try {
+                    Utility.transferIntentToProfile(requireContext(), workAuth);
+                    startActivityForResult(workAuth, REQUEST_WORK_PROFILE_POLICY_AUTH);
+                } catch (RuntimeException e) {
+                    mChangeManager.clearAuthenticationSession();
+                    new AlertDialog.Builder(requireContext())
+                            .setTitle("Work Profile Authentication Unavailable")
+                            .setMessage("The Work Profile could not be reached for the required authentication. No security changes were applied.")
+                            .setPositiveButton(android.R.string.ok, null)
+                            .show();
+                }
             } else {
-
-                /*
-                 * Authentication failed/cancelled.
-                 *
-                 * No pending operation is executed.
-                 */
-                mChangeManager
-                        .clearAuthenticationSession();
+                mChangeManager.clearAuthenticationSession();
+            }
+        } else if (requestCode == REQUEST_WORK_PROFILE_POLICY_AUTH) {
+            if (resultCode == android.app.Activity.RESULT_OK) {
+                // The Work Profile lease has now been granted by its own process.
+                mChangeManager.authorizeCurrentTransaction();
+                mChangeManager.applyAuthenticatedChanges();
+            } else {
+                mChangeManager.clearAuthenticationSession();
+                new AlertDialog.Builder(requireContext())
+                        .setTitle("Authentication Cancelled")
+                        .setMessage("Work Profile authentication did not succeed. No security changes were applied.")
+                        .setPositiveButton(android.R.string.ok, null)
+                        .show();
             }
         }
     }
