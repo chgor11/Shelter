@@ -216,6 +216,17 @@ public class Utility {
                 new IntentFilter(DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
+        /*
+         * Parent-profile security-policy UI -> Work Profile policy owner.
+         * The Work Profile owner must receive this request because only it
+         * can obtain getParentProfileInstance(admin) and set parent keyguard
+         * restrictions.
+         */
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES),
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
         // Allow ACTION_SEND and ACTION_SEND_MULTIPLE to cross from managed to parent
         IntentFilter actionSendFilter = new IntentFilter();
         actionSendFilter.addAction(Intent.ACTION_SEND);
