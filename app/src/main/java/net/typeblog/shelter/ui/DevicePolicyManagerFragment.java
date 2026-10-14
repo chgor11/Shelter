@@ -1,6 +1,7 @@
 package net.typeblog.shelter.ui;
 
 import android.app.KeyguardManager;
+import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -16,7 +17,6 @@ import androidx.preference.PreferenceFragmentCompat;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.util.SecurityPolicyChangeManager;
-
 /*
  * SECURITY POLICY ADMINISTRATION RULE
  *
