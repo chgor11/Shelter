@@ -126,12 +126,4 @@
 
     <!-- Formats -->
     <string name="format_minutes">%d min</string>
-    <string name="policy_disable_fingerprint">Disable fingerprint unlock</string>
-    <string name="policy_disable_fingerprint_summary">When enabled and applied, disables fingerprint authentication on the parent profile lock screen.</string>
-    <string name="policy_disable_face">Disable face unlock</string>
-    <string name="policy_disable_face_summary">When enabled and applied, disables face authentication on the parent profile lock screen.</string>
-    <string name="policy_disable_iris">Disable iris unlock</string>
-    <string name="policy_disable_iris_summary">When enabled and applied, disables iris authentication on the parent profile lock screen.</string>
-    <string name="policy_disable_trust_agents">Disable trusted agents</string>
-    <string name="policy_disable_trust_agents_summary">When enabled and applied, disables trust agents on the parent profile lock screen.</string>
 </resources>
