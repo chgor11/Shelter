@@ -144,21 +144,13 @@ public class Utility {
                 new IntentFilter(DummyActivity.TRY_START_SERVICE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
-        // Parent (personal) profile -> managed (Work) profile authentication.
-        // The signed request is forwarded to the Work Profile authentication
-        // activity, which grants the lease only after Work Profile credential success.
+        // Allow Main Profile to request Work Profile user authentication.
+        // The request itself remains protected by AuthenticationUtility's
+        // existing cross-profile Intent signature.
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.AUTHENTICATE_WORK_PROFILE),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
-
-        // Parent (personal) profile -> managed (Work) profile policy owner.
-        // The receiving action still requires a valid signed intent and a fresh
-        // Work Profile authentication lease.
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
         manager.addCrossProfileIntentFilter(
                 adminComponent,
@@ -178,6 +170,14 @@ public class Utility {
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.FINALIZE_PROVISION),
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
+        // Parent-profile UI may request a single, authenticated parent-keyguard
+        // policy change. DummyActivity validates the signed Intent and applies
+        // the operation only in the Work Profile Owner process.
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_FEATURE),
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         manager.addCrossProfileIntentFilter(
@@ -689,6 +689,37 @@ public class Utility {
         @Override
         public O parseResult(int resultCode, @Nullable Intent intent) {
             return mInner.parseResult(resultCode, intent);
+        }
+    }
+
+    /**
+     * Apply one parent-profile keyguard feature from the Work Profile Owner.
+     * Only the four explicitly supported flags are accepted. The caller must
+     * already have authenticated the signed cross-profile request.
+     */
+    public static boolean setParentKeyguardFeature(
+            Context context, int feature, boolean disabled) {
+        DevicePolicyManager manager = context.getSystemService(DevicePolicyManager.class);
+        if (manager == null || !manager.isProfileOwnerApp(context.getPackageName())
+                || Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            return false;
+        }
+        if (feature != DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                && feature != DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                && feature != DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+                && feature != DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS) {
+            return false;
+        }
+        ComponentName admin = new ComponentName(
+                context.getApplicationContext(), ShelterDeviceAdminReceiver.class);
+        try {
+            DevicePolicyManager parent = manager.getParentProfileInstance(admin);
+            int current = parent.getKeyguardDisabledFeatures(admin);
+            int updated = disabled ? (current | feature) : (current & ~feature);
+            parent.setKeyguardDisabledFeatures(admin, updated);
+            return (parent.getKeyguardDisabledFeatures(admin) & feature) == (disabled ? feature : 0);
+        } catch (SecurityException | IllegalArgumentException e) {
+            return false;
         }
     }
 
