@@ -15,6 +15,29 @@
         android:defaultValue="-1"
         android:inputType="numberSigned" />
 
+    <PreferenceCategory android:title="Lock-screen authentication restrictions">
+        <SwitchPreferenceCompat
+            android:key="policy_disable_fingerprint"
+            android:title="@string/policy_disable_fingerprint"
+            android:summary="@string/policy_disable_fingerprint_summary"
+            android:persistent="false" />
+        <SwitchPreferenceCompat
+            android:key="policy_disable_face"
+            android:title="@string/policy_disable_face"
+            android:summary="@string/policy_disable_face_summary"
+            android:persistent="false" />
+        <SwitchPreferenceCompat
+            android:key="policy_disable_iris"
+            android:title="@string/policy_disable_iris"
+            android:summary="@string/policy_disable_iris_summary"
+            android:persistent="false" />
+        <SwitchPreferenceCompat
+            android:key="policy_disable_trust_agents"
+            android:title="@string/policy_disable_trust_agents"
+            android:summary="@string/policy_disable_trust_agents_summary"
+            android:persistent="false" />
+    </PreferenceCategory>
+
     <net.typeblog.shelter.ui.TemporaryActionPreference
         android:key="lock_phone_now"
         android:title="Lock Phone Now"
