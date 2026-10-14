@@ -1,7 +1,6 @@
 package net.typeblog.shelter.ui;
 
 import android.app.KeyguardManager;
-import android.app.admin.DevicePolicyManager;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Bundle;
@@ -12,11 +11,11 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
-import androidx.preference.SwitchPreferenceCompat;
 import androidx.preference.PreferenceFragmentCompat;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.util.SecurityPolicyChangeManager;
+
 /*
  * SECURITY POLICY ADMINISTRATION RULE
  *
@@ -84,19 +83,6 @@ public class DevicePolicyManagerFragment
         mChangeManager =
                 SecurityPolicyChangeManager
                         .getInstance(requireContext());
-
-        configureParentKeyguardPolicy("fingerprint", "PARENT_FINGERPRINT",
-                DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT,
-                SecurityPolicyChangeManager.APPLY_PARENT_FINGERPRINT);
-        configureParentKeyguardPolicy("face", "PARENT_FACE",
-                DevicePolicyManager.KEYGUARD_DISABLE_FACE,
-                SecurityPolicyChangeManager.APPLY_PARENT_FACE);
-        configureParentKeyguardPolicy("iris", "PARENT_IRIS",
-                DevicePolicyManager.KEYGUARD_DISABLE_IRIS,
-                SecurityPolicyChangeManager.APPLY_PARENT_IRIS);
-        configureParentKeyguardPolicy("trust_agents", "PARENT_TRUST_AGENTS",
-                DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS,
-                SecurityPolicyChangeManager.APPLY_PARENT_TRUST_AGENTS);
 
         /*
          * ============================================================
@@ -372,28 +358,6 @@ public class DevicePolicyManagerFragment
                     }
             );
         }
-    }
-
-    private void configureParentKeyguardPolicy(
-            String suffix, String policyName, int feature, String actionId) {
-        String switchKey = "policy_disable_" + suffix;
-        String applyKey = "apply_policy_disable_" + suffix;
-        SwitchPreferenceCompat toggle = findPreference(switchKey);
-        Preference apply = findPreference(applyKey);
-        if (toggle == null || apply == null) return;
-
-        toggle.setOnPreferenceChangeListener((preference, newValue) -> {
-            boolean disabled = Boolean.TRUE.equals(newValue);
-            boolean previousSelection = toggle.isChecked();
-            mChangeManager.addPendingChange(policyName,
-                    Boolean.toString(previousSelection), Boolean.toString(disabled));
-            return true; // selection only; no DevicePolicyManager call here
-        });
-        apply.setOnPreferenceClickListener(preference -> {
-            mChangeManager.addPendingAction(actionId);
-            showPendingChanges();
-            return true;
-        });
     }
 
     /*
