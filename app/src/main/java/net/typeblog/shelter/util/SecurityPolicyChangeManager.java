@@ -55,11 +55,6 @@ public class SecurityPolicyChangeManager {
     private static final String ACTION_LOCK_PHONE_NOW =
             "LOCK_PHONE_NOW";
 
-    public static final String APPLY_PARENT_FINGERPRINT = "APPLY_PARENT_FINGERPRINT";
-    public static final String APPLY_PARENT_FACE = "APPLY_PARENT_FACE";
-    public static final String APPLY_PARENT_IRIS = "APPLY_PARENT_IRIS";
-    public static final String APPLY_PARENT_TRUST_AGENTS = "APPLY_PARENT_TRUST_AGENTS";
-
     private final Context context;
 
     /*
@@ -226,12 +221,6 @@ public class SecurityPolicyChangeManager {
                 result.append("\n\n");
             }
 
-            if (action.getActionId().startsWith("APPLY_PARENT_")) {
-                result.append("Action: Apply parent lock-screen restriction: ")
-                        .append(action.getActionId().substring("APPLY_PARENT_".length()))
-                        .append("\nStatus: Requested\n\n");
-            }
-
             if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(
                     action.getActionId())) {
 
@@ -324,12 +313,17 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
-         * Consume only the ordinary value-change policy handled above.
-         * Parent-keyguard selections remain pending until their matching
-         * per-setting Apply action is successfully dispatched. Failed
-         * cross-profile actions remain pending for a retry in this page.
+         * Destroy the normal value-change transaction immediately.
+         *
+         * IMPORTANT:
+         *
+         * Do NOT clear pendingActions here. A failed cross-profile
+         * dispatch is intentionally kept pending so the user can retry
+         * it after the Work Profile becomes available. Successfully
+         * dispatched actions have already been removed above.
          */
-        pendingChanges.remove("DEVICE_LOCK_DELAY");
+        pendingChanges.clear();
+        pendingActions.clear();
 
         /*
          * Authentication is destroyed immediately.
@@ -363,18 +357,6 @@ public class SecurityPolicyChangeManager {
         if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
             return requestMaximumWorkProfileSecurity();
         }
-        if (actionId.startsWith("APPLY_PARENT_")) {
-            String policy = actionId.substring("APPLY_".length());
-            PendingSecurityChange change = pendingChanges.get(policy);
-            if (change == null) return false;
-            int feature;
-            if ("PARENT_FINGERPRINT".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
-            else if ("PARENT_FACE".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
-            else if ("PARENT_IRIS".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-            else if ("PARENT_TRUST_AGENTS".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
-            else return false;
-            return requestParentKeyguardFeature(feature, Boolean.parseBoolean(change.getNewValue()));
-        }
 
         return false;
     }
@@ -402,20 +384,6 @@ public class SecurityPolicyChangeManager {
      * policy has already been applied; the authoritative latch lives in
      * the Work Profile copy of LocalStorageManager.
      */
-    private boolean requestParentKeyguardFeature(int feature, boolean disabled) {
-        Intent intent = new Intent(DummyActivity.APPLY_PARENT_KEYGUARD_FEATURE);
-        intent.putExtra("keyguard_feature", feature);
-        intent.putExtra("disabled", disabled);
-        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            Utility.transferIntentToProfile(context, intent);
-            context.startActivity(intent);
-            return true;
-        } catch (RuntimeException e) {
-            return false;
-        }
-    }
-
     private boolean requestMaximumWorkProfileSecurity() {
 
         Intent intent =
@@ -609,4 +577,3 @@ public class SecurityPolicyChangeManager {
         }
     }
 }
-
