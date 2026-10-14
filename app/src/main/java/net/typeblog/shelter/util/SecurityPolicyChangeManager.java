@@ -4,6 +4,8 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.Context;
+import android.content.SharedPreferences;
+import androidx.preference.PreferenceManager;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -187,9 +189,12 @@ public class SecurityPolicyChangeManager {
         for (PendingSecurityChange change :
                 pendingChanges.values()) {
 
-            result.append(
-                    change.getPolicyName()
-            );
+            String policyName = change.getPolicyName();
+            if (KEY_DISABLE_FINGERPRINT.equals(policyName)) policyName = "Disable fingerprint unlock";
+            else if (KEY_DISABLE_FACE.equals(policyName)) policyName = "Disable face unlock";
+            else if (KEY_DISABLE_IRIS.equals(policyName)) policyName = "Disable iris unlock";
+            else if (KEY_DISABLE_TRUST_AGENTS.equals(policyName)) policyName = "Disable trusted agents";
+            result.append(policyName);
 
             result.append("\nOld value: ");
 
@@ -294,6 +299,15 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
+         * Apply the four lock-screen switches as one authenticated Work Profile
+         * request. UI switch changes are staged only; no DPM call occurs until here.
+         */
+        boolean keyguardDispatched = true;
+        if (hasPendingKeyguardChanges()) {
+            keyguardDispatched = dispatchParentKeyguardPolicies();
+        }
+
+        /*
          * Apply temporary one-shot actions.
          */
         for (PendingSecurityAction action :
@@ -322,7 +336,11 @@ public class SecurityPolicyChangeManager {
          * it after the Work Profile becomes available. Successfully
          * dispatched actions have already been removed above.
          */
-        pendingChanges.clear();
+        if (keyguardDispatched) {
+            pendingChanges.clear();
+        } else {
+            pendingChanges.keySet().removeIf(key -> !key.startsWith("policy_disable_"));
+        }
         pendingActions.clear();
 
         /*
@@ -331,6 +349,53 @@ public class SecurityPolicyChangeManager {
          * It cannot be reused.
          */
         authenticatedSession = false;
+    }
+
+    private static final String KEY_DISABLE_FINGERPRINT = "policy_disable_fingerprint";
+    private static final String KEY_DISABLE_FACE = "policy_disable_face";
+    private static final String KEY_DISABLE_IRIS = "policy_disable_iris";
+    private static final String KEY_DISABLE_TRUST_AGENTS = "policy_disable_trust_agents";
+
+    private boolean hasPendingKeyguardChanges() {
+        return pendingChanges.containsKey(KEY_DISABLE_FINGERPRINT)
+                || pendingChanges.containsKey(KEY_DISABLE_FACE)
+                || pendingChanges.containsKey(KEY_DISABLE_IRIS)
+                || pendingChanges.containsKey(KEY_DISABLE_TRUST_AGENTS);
+    }
+
+    private boolean dispatchParentKeyguardPolicies() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+        boolean fingerprint = pendingBoolean(KEY_DISABLE_FINGERPRINT, prefs);
+        boolean face = pendingBoolean(KEY_DISABLE_FACE, prefs);
+        boolean iris = pendingBoolean(KEY_DISABLE_IRIS, prefs);
+        boolean trustAgents = pendingBoolean(KEY_DISABLE_TRUST_AGENTS, prefs);
+
+        Intent intent = new Intent(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES);
+        intent.putExtra("disable_fingerprint", fingerprint);
+        intent.putExtra("disable_face", face);
+        intent.putExtra("disable_iris", iris);
+        intent.putExtra("disable_trust_agents", trustAgents);
+        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            Utility.transferIntentToProfile(context, intent);
+            context.startActivity(intent);
+            prefs.edit()
+                    .putBoolean(KEY_DISABLE_FINGERPRINT, fingerprint)
+                    .putBoolean(KEY_DISABLE_FACE, face)
+                    .putBoolean(KEY_DISABLE_IRIS, iris)
+                    .putBoolean(KEY_DISABLE_TRUST_AGENTS, trustAgents)
+                    .apply();
+            return true;
+        } catch (RuntimeException e) {
+            // Keep the pending values; a later authenticated apply can retry.
+            return false;
+        }
+    }
+
+    private boolean pendingBoolean(String key, SharedPreferences prefs) {
+        PendingSecurityChange change = pendingChanges.get(key);
+        return change == null ? prefs.getBoolean(key, false)
+                : Boolean.parseBoolean(change.getNewValue());
     }
 
     /*
