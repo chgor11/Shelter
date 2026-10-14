@@ -12,6 +12,9 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
 import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.SwitchPreferenceCompat;
+import androidx.preference.PreferenceManager;
+import android.content.SharedPreferences;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.util.SecurityPolicyChangeManager;
@@ -83,6 +86,29 @@ public class DevicePolicyManagerFragment
         mChangeManager =
                 SecurityPolicyChangeManager
                         .getInstance(requireContext());
+
+        /*
+         * Four reversible parent-profile keyguard policies. These switches
+         * only stage values; DevicePolicyManager is called after review and
+         * successful device-credential authentication via the change manager.
+         */
+        SharedPreferences appliedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
+        String[] keyguardKeys = new String[] {
+                "policy_disable_fingerprint", "policy_disable_face",
+                "policy_disable_iris", "policy_disable_trust_agents"
+        };
+        for (String key : keyguardKeys) {
+            SwitchPreferenceCompat toggle = findPreference(key);
+            if (toggle == null) continue;
+            toggle.setPersistent(false);
+            toggle.setChecked(appliedPrefs.getBoolean(key, false));
+            toggle.setOnPreferenceChangeListener((preference, newValue) -> {
+                boolean oldValue = appliedPrefs.getBoolean(key, false);
+                boolean desired = (Boolean) newValue;
+                mChangeManager.addPendingChange(key, Boolean.toString(oldValue), Boolean.toString(desired));
+                return true;
+            });
+        }
 
         /*
          * ============================================================
