@@ -15,51 +15,6 @@
         android:defaultValue="-1"
         android:inputType="numberSigned" />
 
-    <PreferenceCategory
-        android:title="Parent lock-screen authentication restrictions">
-
-        <androidx.preference.SwitchPreferenceCompat
-            android:key="policy_disable_fingerprint"
-            android:title="Disable fingerprint unlock"
-            android:summary="Select whether fingerprint authentication is disabled on the parent profile"
-            android:defaultValue="false" />
-        <Preference
-            android:key="apply_policy_disable_fingerprint"
-            android:title="Apply fingerprint restriction"
-            android:summary="Apply the selected fingerprint setting after review and device-credential authentication" />
-
-        <androidx.preference.SwitchPreferenceCompat
-            android:key="policy_disable_face"
-            android:title="Disable face unlock"
-            android:summary="Select whether face authentication is disabled on the parent profile"
-            android:defaultValue="false" />
-        <Preference
-            android:key="apply_policy_disable_face"
-            android:title="Apply face restriction"
-            android:summary="Apply the selected face setting after review and device-credential authentication" />
-
-        <androidx.preference.SwitchPreferenceCompat
-            android:key="policy_disable_iris"
-            android:title="Disable iris unlock"
-            android:summary="Select whether iris authentication is disabled on the parent profile"
-            android:defaultValue="false" />
-        <Preference
-            android:key="apply_policy_disable_iris"
-            android:title="Apply iris restriction"
-            android:summary="Apply the selected iris setting after review and device-credential authentication" />
-
-        <androidx.preference.SwitchPreferenceCompat
-            android:key="policy_disable_trust_agents"
-            android:title="Disable trust agents"
-            android:summary="Select whether trust agents are disabled on the parent profile"
-            android:defaultValue="false" />
-        <Preference
-            android:key="apply_policy_disable_trust_agents"
-            android:title="Apply trust-agent restriction"
-            android:summary="Apply the selected trust-agent setting after review and device-credential authentication" />
-
-    </PreferenceCategory>
-
     <net.typeblog.shelter.ui.TemporaryActionPreference
         android:key="lock_phone_now"
         android:title="Lock Phone Now"
