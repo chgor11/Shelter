@@ -38,7 +38,6 @@
             android:summary="@string/settings_work_profile_apps_control_desc"
             android:defaultValue="false" />
 
-
     </androidx.preference.PreferenceCategory>
 
     <androidx.preference.PreferenceCategory
