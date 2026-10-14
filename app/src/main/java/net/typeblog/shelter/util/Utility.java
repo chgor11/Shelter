@@ -144,13 +144,21 @@ public class Utility {
                 new IntentFilter(DummyActivity.TRY_START_SERVICE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
-        // Allow Main Profile to request Work Profile user authentication.
-        // The request itself remains protected by AuthenticationUtility's
-        // existing cross-profile Intent signature.
+        // Parent (personal) profile -> managed (Work) profile authentication.
+        // The signed request is forwarded to the Work Profile authentication
+        // activity, which grants the lease only after Work Profile credential success.
         manager.addCrossProfileIntentFilter(
                 adminComponent,
                 new IntentFilter(DummyActivity.AUTHENTICATE_WORK_PROFILE),
-                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
+        // Parent (personal) profile -> managed (Work) profile policy owner.
+        // The receiving action still requires a valid signed intent and a fresh
+        // Work Profile authentication lease.
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES),
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         manager.addCrossProfileIntentFilter(
                 adminComponent,
@@ -215,17 +223,6 @@ public class Utility {
                 adminComponent,
                 new IntentFilter(DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
-
-        /*
-         * Parent-profile security-policy UI -> Work Profile policy owner.
-         * The Work Profile owner must receive this request because only it
-         * can obtain getParentProfileInstance(admin) and set parent keyguard
-         * restrictions.
-         */
-        manager.addCrossProfileIntentFilter(
-                adminComponent,
-                new IntentFilter(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES),
-                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         // Allow ACTION_SEND and ACTION_SEND_MULTIPLE to cross from managed to parent
         IntentFilter actionSendFilter = new IntentFilter();
