@@ -4,8 +4,6 @@ import android.app.admin.DevicePolicyManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.Context;
-import android.content.SharedPreferences;
-import androidx.preference.PreferenceManager;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -56,6 +54,11 @@ public class SecurityPolicyChangeManager {
 
     private static final String ACTION_LOCK_PHONE_NOW =
             "LOCK_PHONE_NOW";
+
+    public static final String APPLY_PARENT_FINGERPRINT = "APPLY_PARENT_FINGERPRINT";
+    public static final String APPLY_PARENT_FACE = "APPLY_PARENT_FACE";
+    public static final String APPLY_PARENT_IRIS = "APPLY_PARENT_IRIS";
+    public static final String APPLY_PARENT_TRUST_AGENTS = "APPLY_PARENT_TRUST_AGENTS";
 
     private final Context context;
 
@@ -189,12 +192,9 @@ public class SecurityPolicyChangeManager {
         for (PendingSecurityChange change :
                 pendingChanges.values()) {
 
-            String policyName = change.getPolicyName();
-            if (KEY_DISABLE_FINGERPRINT.equals(policyName)) policyName = "Disable fingerprint unlock";
-            else if (KEY_DISABLE_FACE.equals(policyName)) policyName = "Disable face unlock";
-            else if (KEY_DISABLE_IRIS.equals(policyName)) policyName = "Disable iris unlock";
-            else if (KEY_DISABLE_TRUST_AGENTS.equals(policyName)) policyName = "Disable trusted agents";
-            result.append(policyName);
+            result.append(
+                    change.getPolicyName()
+            );
 
             result.append("\nOld value: ");
 
@@ -224,6 +224,12 @@ public class SecurityPolicyChangeManager {
                 result.append("\nStatus: Pressed");
 
                 result.append("\n\n");
+            }
+
+            if (action.getActionId().startsWith("APPLY_PARENT_")) {
+                result.append("Action: Apply parent lock-screen restriction: ")
+                        .append(action.getActionId().substring("APPLY_PARENT_".length()))
+                        .append("\nStatus: Requested\n\n");
             }
 
             if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(
@@ -299,15 +305,6 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
-         * Apply the four lock-screen switches as one authenticated Work Profile
-         * request. UI switch changes are staged only; no DPM call occurs until here.
-         */
-        boolean keyguardDispatched = true;
-        if (hasPendingKeyguardChanges()) {
-            keyguardDispatched = dispatchParentKeyguardPolicies();
-        }
-
-        /*
          * Apply temporary one-shot actions.
          */
         for (PendingSecurityAction action :
@@ -327,21 +324,12 @@ public class SecurityPolicyChangeManager {
         }
 
         /*
-         * Destroy the normal value-change transaction immediately.
-         *
-         * IMPORTANT:
-         *
-         * Do NOT clear pendingActions here. A failed cross-profile
-         * dispatch is intentionally kept pending so the user can retry
-         * it after the Work Profile becomes available. Successfully
-         * dispatched actions have already been removed above.
+         * Consume only the ordinary value-change policy handled above.
+         * Parent-keyguard selections remain pending until their matching
+         * per-setting Apply action is successfully dispatched. Failed
+         * cross-profile actions remain pending for a retry in this page.
          */
-        if (keyguardDispatched) {
-            pendingChanges.clear();
-        } else {
-            pendingChanges.keySet().removeIf(key -> !key.startsWith("policy_disable_"));
-        }
-        pendingActions.clear();
+        pendingChanges.remove("DEVICE_LOCK_DELAY");
 
         /*
          * Authentication is destroyed immediately.
@@ -349,53 +337,6 @@ public class SecurityPolicyChangeManager {
          * It cannot be reused.
          */
         authenticatedSession = false;
-    }
-
-    private static final String KEY_DISABLE_FINGERPRINT = "policy_disable_fingerprint";
-    private static final String KEY_DISABLE_FACE = "policy_disable_face";
-    private static final String KEY_DISABLE_IRIS = "policy_disable_iris";
-    private static final String KEY_DISABLE_TRUST_AGENTS = "policy_disable_trust_agents";
-
-    private boolean hasPendingKeyguardChanges() {
-        return pendingChanges.containsKey(KEY_DISABLE_FINGERPRINT)
-                || pendingChanges.containsKey(KEY_DISABLE_FACE)
-                || pendingChanges.containsKey(KEY_DISABLE_IRIS)
-                || pendingChanges.containsKey(KEY_DISABLE_TRUST_AGENTS);
-    }
-
-    private boolean dispatchParentKeyguardPolicies() {
-        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
-        boolean fingerprint = pendingBoolean(KEY_DISABLE_FINGERPRINT, prefs);
-        boolean face = pendingBoolean(KEY_DISABLE_FACE, prefs);
-        boolean iris = pendingBoolean(KEY_DISABLE_IRIS, prefs);
-        boolean trustAgents = pendingBoolean(KEY_DISABLE_TRUST_AGENTS, prefs);
-
-        Intent intent = new Intent(DummyActivity.APPLY_PARENT_KEYGUARD_POLICIES);
-        intent.putExtra("disable_fingerprint", fingerprint);
-        intent.putExtra("disable_face", face);
-        intent.putExtra("disable_iris", iris);
-        intent.putExtra("disable_trust_agents", trustAgents);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        try {
-            Utility.transferIntentToProfile(context, intent);
-            context.startActivity(intent);
-            prefs.edit()
-                    .putBoolean(KEY_DISABLE_FINGERPRINT, fingerprint)
-                    .putBoolean(KEY_DISABLE_FACE, face)
-                    .putBoolean(KEY_DISABLE_IRIS, iris)
-                    .putBoolean(KEY_DISABLE_TRUST_AGENTS, trustAgents)
-                    .apply();
-            return true;
-        } catch (RuntimeException e) {
-            // Keep the pending values; a later authenticated apply can retry.
-            return false;
-        }
-    }
-
-    private boolean pendingBoolean(String key, SharedPreferences prefs) {
-        PendingSecurityChange change = pendingChanges.get(key);
-        return change == null ? prefs.getBoolean(key, false)
-                : Boolean.parseBoolean(change.getNewValue());
     }
 
     /*
@@ -421,6 +362,18 @@ public class SecurityPolicyChangeManager {
          */
         if (DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(actionId)) {
             return requestMaximumWorkProfileSecurity();
+        }
+        if (actionId.startsWith("APPLY_PARENT_")) {
+            String policy = actionId.substring("APPLY_".length());
+            PendingSecurityChange change = pendingChanges.get(policy);
+            if (change == null) return false;
+            int feature;
+            if ("PARENT_FINGERPRINT".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+            else if ("PARENT_FACE".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+            else if ("PARENT_IRIS".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+            else if ("PARENT_TRUST_AGENTS".equals(policy)) feature = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+            else return false;
+            return requestParentKeyguardFeature(feature, Boolean.parseBoolean(change.getNewValue()));
         }
 
         return false;
@@ -449,6 +402,20 @@ public class SecurityPolicyChangeManager {
      * policy has already been applied; the authoritative latch lives in
      * the Work Profile copy of LocalStorageManager.
      */
+    private boolean requestParentKeyguardFeature(int feature, boolean disabled) {
+        Intent intent = new Intent(DummyActivity.APPLY_PARENT_KEYGUARD_FEATURE);
+        intent.putExtra("keyguard_feature", feature);
+        intent.putExtra("disabled", disabled);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        try {
+            Utility.transferIntentToProfile(context, intent);
+            context.startActivity(intent);
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
     private boolean requestMaximumWorkProfileSecurity() {
 
         Intent intent =
