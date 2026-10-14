@@ -80,7 +80,6 @@ public class DummyActivity extends SecureActivity {
      * unsigned-action allow-list.
      */
     public static final String APPLY_MAXIMUM_WORK_PROFILE_SECURITY = "net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
-    public static final String APPLY_PARENT_KEYGUARD_FEATURE = "net.typeblog.shelter.action.APPLY_PARENT_KEYGUARD_FEATURE";
     public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
     public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
     public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
@@ -139,7 +138,6 @@ public class DummyActivity extends SecureActivity {
                     START_FILE_SHUTTLE_2,
                     SYNCHRONIZE_PREFERENCE,
                     APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
-                    APPLY_PARENT_KEYGUARD_FEATURE,
                     INSTALL_PACKAGE,
                     UNINSTALL_PACKAGE,
                     UNFREEZE_AND_LAUNCH);
@@ -241,8 +239,6 @@ public class DummyActivity extends SecureActivity {
             actionSecurityResponse();
         } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
             actionApplyMaximumWorkProfileSecurity();
-        } else if (APPLY_PARENT_KEYGUARD_FEATURE.equals(intent.getAction())) {
-            actionApplyParentKeyguardFeature();
         } else {
             finish();
         }
@@ -1002,21 +998,6 @@ public class DummyActivity extends SecureActivity {
      * permanent latch is set and Shelter has no code path that removes the
      * policy.
      */
-    private void actionApplyParentKeyguardFeature() {
-        if (!mIsProfileOwner || mPolicyManager == null
-                || !mPolicyManager.isProfileOwnerApp(getPackageName())) {
-            finish();
-            return;
-        }
-        int feature = getIntent().getIntExtra("keyguard_feature", 0);
-        boolean disabled = getIntent().getBooleanExtra("disabled", false);
-        boolean applied = Utility.setParentKeyguardFeature(this, feature, disabled);
-        if (!applied) {
-            Toast.makeText(this, "Could not apply the parent lock-screen restriction", Toast.LENGTH_LONG).show();
-        }
-        finish();
-    }
-
     private void actionApplyMaximumWorkProfileSecurity() {
 
         if (!mIsProfileOwner) {
