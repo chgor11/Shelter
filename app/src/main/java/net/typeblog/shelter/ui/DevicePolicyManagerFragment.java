@@ -11,14 +11,11 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.preference.EditTextPreference;
 import androidx.preference.Preference;
-import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.SwitchPreferenceCompat;
-import androidx.preference.PreferenceManager;
-import android.content.SharedPreferences;
+import androidx.preference.PreferenceFragmentCompat;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.util.SecurityPolicyChangeManager;
-import net.typeblog.shelter.util.Utility;
 
 /*
  * SECURITY POLICY ADMINISTRATION RULE
@@ -58,7 +55,6 @@ public class DevicePolicyManagerFragment
         extends PreferenceFragmentCompat {
 
     private static final int REQUEST_POLICY_AUTH = 9001;
-    private static final int REQUEST_WORK_PROFILE_POLICY_AUTH = 9002;
 
     private static final String PREF_DEVICE_LOCK_DELAY =
             "device_lock_delay";
@@ -89,28 +85,18 @@ public class DevicePolicyManagerFragment
                 SecurityPolicyChangeManager
                         .getInstance(requireContext());
 
-        /*
-         * Four reversible parent-profile keyguard policies. These switches
-         * only stage values; DevicePolicyManager is called after review and
-         * successful device-credential authentication via the change manager.
-         */
-        SharedPreferences appliedPrefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-        String[] keyguardKeys = new String[] {
-                "policy_disable_fingerprint", "policy_disable_face",
-                "policy_disable_iris", "policy_disable_trust_agents"
-        };
-        for (String key : keyguardKeys) {
-            SwitchPreferenceCompat toggle = findPreference(key);
-            if (toggle == null) continue;
-            toggle.setPersistent(false);
-            toggle.setChecked(appliedPrefs.getBoolean(key, false));
-            toggle.setOnPreferenceChangeListener((preference, newValue) -> {
-                boolean oldValue = appliedPrefs.getBoolean(key, false);
-                boolean desired = (Boolean) newValue;
-                mChangeManager.addPendingChange(key, Boolean.toString(oldValue), Boolean.toString(desired));
-                return true;
-            });
-        }
+        configureParentKeyguardPolicy("fingerprint", "PARENT_FINGERPRINT",
+                DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT,
+                SecurityPolicyChangeManager.APPLY_PARENT_FINGERPRINT);
+        configureParentKeyguardPolicy("face", "PARENT_FACE",
+                DevicePolicyManager.KEYGUARD_DISABLE_FACE,
+                SecurityPolicyChangeManager.APPLY_PARENT_FACE);
+        configureParentKeyguardPolicy("iris", "PARENT_IRIS",
+                DevicePolicyManager.KEYGUARD_DISABLE_IRIS,
+                SecurityPolicyChangeManager.APPLY_PARENT_IRIS);
+        configureParentKeyguardPolicy("trust_agents", "PARENT_TRUST_AGENTS",
+                DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS,
+                SecurityPolicyChangeManager.APPLY_PARENT_TRUST_AGENTS);
 
         /*
          * ============================================================
@@ -388,6 +374,28 @@ public class DevicePolicyManagerFragment
         }
     }
 
+    private void configureParentKeyguardPolicy(
+            String suffix, String policyName, int feature, String actionId) {
+        String switchKey = "policy_disable_" + suffix;
+        String applyKey = "apply_policy_disable_" + suffix;
+        SwitchPreferenceCompat toggle = findPreference(switchKey);
+        Preference apply = findPreference(applyKey);
+        if (toggle == null || apply == null) return;
+
+        toggle.setOnPreferenceChangeListener((preference, newValue) -> {
+            boolean disabled = Boolean.TRUE.equals(newValue);
+            boolean previousSelection = toggle.isChecked();
+            mChangeManager.addPendingChange(policyName,
+                    Boolean.toString(previousSelection), Boolean.toString(disabled));
+            return true; // selection only; no DevicePolicyManager call here
+        });
+        apply.setOnPreferenceClickListener(preference -> {
+            mChangeManager.addPendingAction(actionId);
+            showPendingChanges();
+            return true;
+        });
+    }
+
     /*
      * ============================================================
      * REVIEW
@@ -593,39 +601,36 @@ public class DevicePolicyManagerFragment
                 data
         );
 
-        if (requestCode == REQUEST_POLICY_AUTH) {
-            if (resultCode == android.app.Activity.RESULT_OK) {
-                // Personal-profile device credential is required first. Sensitive
-                // Work Profile operations also require a fresh lease created only
-                // inside the Work Profile process after its credential succeeds.
-                Intent workAuth = new Intent(DummyActivity.AUTHENTICATE_WORK_PROFILE);
-                workAuth.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION);
-                try {
-                    Utility.transferIntentToProfile(requireContext(), workAuth);
-                    startActivityForResult(workAuth, REQUEST_WORK_PROFILE_POLICY_AUTH);
-                } catch (RuntimeException e) {
-                    mChangeManager.clearAuthenticationSession();
-                    new AlertDialog.Builder(requireContext())
-                            .setTitle("Work Profile Authentication Unavailable")
-                            .setMessage("The Work Profile could not be reached for the required authentication. No security changes were applied.")
-                            .setPositiveButton(android.R.string.ok, null)
-                            .show();
-                }
+        if (requestCode ==
+                REQUEST_POLICY_AUTH) {
+
+            if (resultCode ==
+                    android.app.Activity.RESULT_OK) {
+
+                /*
+                 * Authentication is valid only
+                 * for this current transaction.
+                 */
+                mChangeManager
+                        .authorizeCurrentTransaction();
+
+                /*
+                 * This is the ONLY point where the
+                 * pending security operations are allowed
+                 * to execute.
+                 */
+                mChangeManager
+                        .applyAuthenticatedChanges();
+
             } else {
-                mChangeManager.clearAuthenticationSession();
-            }
-        } else if (requestCode == REQUEST_WORK_PROFILE_POLICY_AUTH) {
-            if (resultCode == android.app.Activity.RESULT_OK) {
-                // The Work Profile lease has now been granted by its own process.
-                mChangeManager.authorizeCurrentTransaction();
-                mChangeManager.applyAuthenticatedChanges();
-            } else {
-                mChangeManager.clearAuthenticationSession();
-                new AlertDialog.Builder(requireContext())
-                        .setTitle("Authentication Cancelled")
-                        .setMessage("Work Profile authentication did not succeed. No security changes were applied.")
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show();
+
+                /*
+                 * Authentication failed/cancelled.
+                 *
+                 * No pending operation is executed.
+                 */
+                mChangeManager
+                        .clearAuthenticationSession();
             }
         }
     }
