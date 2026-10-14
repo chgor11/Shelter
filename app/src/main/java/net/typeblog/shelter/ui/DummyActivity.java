@@ -1081,11 +1081,6 @@ public class DummyActivity extends SecureActivity {
                     passwordExpirationTimeout
             );
 
-            mPolicyManager.setCrossProfilePackages(
-                    admin,
-                    Collections.emptySet()
-            );
-
             /*
              * Require a separate Work Profile challenge rather than a
              * unified challenge with the parent profile.
