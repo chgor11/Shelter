@@ -71,6 +71,9 @@ public class DummyActivity extends SecureActivity {
     public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
     public static final String AUTHENTICATE_WORK_PROFILE = "net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE";
     public static final String SECURITY_RESPONSE = "net.typeblog.shelter.action.SECURITY_RESPONSE";
+    public static final String SET_PARENT_KEYGUARD_POLICY = "net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY";
+    public static final String EXTRA_KEYGUARD_POLICY_FLAG = "keyguard_policy_flag";
+    public static final String EXTRA_KEYGUARD_POLICY_ENABLED = "keyguard_policy_enabled";
     /**
      * SECURITY-CRITICAL:
      *
@@ -138,6 +141,7 @@ public class DummyActivity extends SecureActivity {
                     START_FILE_SHUTTLE_2,
                     SYNCHRONIZE_PREFERENCE,
                     APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
+                    SET_PARENT_KEYGUARD_POLICY,
                     INSTALL_PACKAGE,
                     UNINSTALL_PACKAGE,
                     UNFREEZE_AND_LAUNCH);
@@ -235,6 +239,8 @@ public class DummyActivity extends SecureActivity {
             actionStartFileShuttle();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
+        } else if (SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())) {
+            actionSetParentKeyguardPolicy();
         } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
             actionSecurityResponse();
         } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
@@ -1182,43 +1188,37 @@ public class DummyActivity extends SecureActivity {
         finish();
     }
 
-    private void actionSecurityResponse() {
-    
-        if (!mIsProfileOwner) {
+    private void actionSetParentKeyguardPolicy() {
+        if (!mIsProfileOwner || !AuthenticationUtility.checkIntent(getIntent())
+                || !WorkProfileAuthenticationState.isValid()) {
             finish();
             return;
         }
-    
-        ComponentName admin =
-                new ComponentName(
-                        this,
-                        ShelterDeviceAdminReceiver.class
-                );
-    
-        try {
-            DevicePolicyManager parentManager =
-                    mPolicyManager.getParentProfileInstance(admin);
-    
-            int keyguardFlags =
-                    DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
-                    | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
-                    | DevicePolicyManager.KEYGUARD_DISABLE_FACE
-                    | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-    
-            try {
-                parentManager.setKeyguardDisabledFeatures(
-                        admin,
-                        keyguardFlags
-                );
-
-            } catch (SecurityException e) {
-                finish();
-            }
-
-        } catch (SecurityException e) {
+        int flag = getIntent().getIntExtra(EXTRA_KEYGUARD_POLICY_FLAG, 0);
+        boolean enabled = getIntent().getBooleanExtra(EXTRA_KEYGUARD_POLICY_ENABLED, false);
+        int allowed = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                | DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                | DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+                | DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+        if ((flag & allowed) == 0 || (flag & (flag - 1)) != 0) {
             finish();
+            return;
         }
-    
+        try {
+            ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
+            DevicePolicyManager parent = mPolicyManager.getParentProfileInstance(admin);
+            int current = parent.getKeyguardDisabledFeatures(admin);
+            int updated = enabled ? (current | flag) : (current & ~flag);
+            parent.setKeyguardDisabledFeatures(admin, updated);
+        } catch (SecurityException | IllegalStateException ignored) {
+            // Fail closed: do not report success or alter local preference state.
+        }
+        finish();
+    }
+
+    private void actionSecurityResponse() {
+        // Deliberately do not force keyguard restrictions here. The four
+        // independently configured parent-profile policies must be preserved.
         finish();
     }
 }
