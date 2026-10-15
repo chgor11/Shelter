@@ -200,6 +200,11 @@ public class Utility {
 
         manager.addCrossProfileIntentFilter(
                 adminComponent,
+                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY),
+                DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
+
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
                 new IntentFilter(DummyActivity.SECURITY_RESPONSE),
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
@@ -682,116 +687,6 @@ public class Utility {
         public O parseResult(int resultCode, @Nullable Intent intent) {
             return mInner.parseResult(resultCode, intent);
         }
-    }
-
-    public static void enforceParentKeyguardPolicies(Context context) {
-        DevicePolicyManager manager =
-                context.getSystemService(DevicePolicyManager.class);
-    
-        if (manager == null) {
-            return;
-        }
-    
-        ComponentName adminComponent =
-                new ComponentName(
-                        context.getApplicationContext(),
-                        ShelterDeviceAdminReceiver.class
-                );
-    
-        // This method must be called from the Work Profile,
-        // where Shelter is the Profile Owner.
-        if (!manager.isProfileOwnerApp(context.getPackageName())) {
-            return;
-        }
-    
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            try {
-                DevicePolicyManager parentManager =
-                        manager.getParentProfileInstance(adminComponent);
-    
-                int keyguardFlags =
-                        DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
-                        | DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
-                        | DevicePolicyManager.KEYGUARD_DISABLE_FACE
-                        | DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-    
-                parentManager.setKeyguardDisabledFeatures(
-                        adminComponent,
-                        keyguardFlags
-                );
-    
-            } catch (SecurityException e) {
-                // ignore
-            }
-        }
-    }
-
-    public static void resetParentKeyguardPolicy(
-            Context context,
-            int policyToRemove) {
-    
-        DevicePolicyManager manager =
-                context.getSystemService(DevicePolicyManager.class);
-    
-        if (manager == null ||
-                !manager.isProfileOwnerApp(context.getPackageName())) {
-            return;
-        }
-    
-        ComponentName adminComponent =
-                new ComponentName(
-                        context.getApplicationContext(),
-                        ShelterDeviceAdminReceiver.class
-                );
-    
-        try {
-            DevicePolicyManager parentManager =
-                    manager.getParentProfileInstance(adminComponent);
-    
-            int current =
-                    parentManager.getKeyguardDisabledFeatures(
-                            adminComponent
-                    );
-    
-            int remaining =
-                    current & ~policyToRemove;
-    
-            parentManager.setKeyguardDisabledFeatures(
-                    adminComponent,
-                    remaining
-            );
-    
-        } catch (SecurityException e) {
-            // ignore
-        }
-    }
-
-    public static void resetParentTrustAgents(Context context) {
-        resetParentKeyguardPolicy(
-                context,
-                DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS
-        );
-    }
-
-    public static void resetParentFingerprint(Context context) {
-        resetParentKeyguardPolicy(
-                context,
-                DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
-        );
-    }
-
-    public static void resetParentFace(Context context) {
-        resetParentKeyguardPolicy(
-                context,
-                DevicePolicyManager.KEYGUARD_DISABLE_FACE
-        );
-    }
-
-    public static void resetParentIris(Context context) {
-        resetParentKeyguardPolicy(
-                context,
-                DevicePolicyManager.KEYGUARD_DISABLE_IRIS
-        );
     }
 
 }
