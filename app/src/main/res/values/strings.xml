@@ -118,14 +118,6 @@
     <string name="launch_app_fail">Cannot launch app %s because it has no GUI.</string>
     <string name="request_storage_manager">Shelter needs access to <b>All Files</b> for File Shuttle. Please enable the permission for <b>BOTH OF THE TWO </b> (Personal / Work) Shelter apps shown in the dialog after you press \"Ok\".</string>
     <string name="request_system_alert">Shelter needs to <b>Draw over Other Apps</b> in order for File Shuttle to function correctly. Please enable the permission for <b>BOTH OF THE TWO </b> (Personal / Work) Shelter apps shown in the dialog after you press \"Ok\". This permission is used to start File Shuttle services in the background.</string>
-    <string name="reset_parent_trust_agents">Reset Trust Agents</string>
-    <string name="reset_parent_trust_agents_summary">Remove the Trust Agents restriction from the Parent Profile.</string>
-    <string name="reset_parent_fingerprint">Reset Fingerprint</string>
-    <string name="reset_parent_fingerprint_summary">Remove the fingerprint restriction from the Parent Profile.</string>
-    <string name="reset_parent_face">Reset Face</string>
-    <string name="reset_parent_face_summary">Remove the face authentication restriction from the Parent Profile.</string>
-    <string name="reset_parent_iris">Reset Iris</string>
-    <string name="reset_parent_iris_summary">Remove the iris authentication restriction from the Parent Profile.</string>
 
     <!-- MIUI -->
     <string name="miui_cannot_clone">Cloning non-system apps to another profile is currently not possible on MIUI. Please clone your system\'s app store (e.g. <b>Play Store</b>) into the other profile and then install apps from there.</string>
@@ -134,4 +126,12 @@
 
     <!-- Formats -->
     <string name="format_minutes">%d min</string>
+    <string name="disable_parent_fingerprint">Disable fingerprint unlock</string>
+    <string name="disable_parent_fingerprint_summary">Disable fingerprint authentication on the Personal Profile lock screen.</string>
+    <string name="disable_parent_face">Disable face unlock</string>
+    <string name="disable_parent_face_summary">Disable face authentication on the Personal Profile lock screen.</string>
+    <string name="disable_parent_iris">Disable iris unlock</string>
+    <string name="disable_parent_iris_summary">Disable iris authentication on the Personal Profile lock screen.</string>
+    <string name="disable_parent_trust_agents">Disable trusted agents</string>
+    <string name="disable_parent_trust_agents_summary">Disable trusted agents on the Personal Profile lock screen.</string>
 </resources>
