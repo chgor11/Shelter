@@ -332,81 +332,14 @@ public class SettingsFragment extends PreferenceFragmentCompat
         mPrefSkipForeground
                 .setOnPreferenceChangeListener(this);
 
-        Preference resetTrustAgents =
-                findPreference(
-                        "settings_reset_parent_trust_agents"
-                );
-
-        if (resetTrustAgents != null) {
-
-            resetTrustAgents.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentTrustAgents(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetFingerprint =
-                findPreference(
-                        "settings_reset_parent_fingerprint"
-                );
-
-        if (resetFingerprint != null) {
-
-            resetFingerprint.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentFingerprint(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetFace =
-                findPreference(
-                        "settings_reset_parent_face"
-                );
-
-        if (resetFace != null) {
-
-            resetFace.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentFace(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetIris =
-                findPreference(
-                        "settings_reset_parent_iris"
-                );
-
-        if (resetIris != null) {
-
-            resetIris.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentIris(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
+        setupParentKeyguardToggle("settings_disable_parent_fingerprint",
+                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT);
+        setupParentKeyguardToggle("settings_disable_parent_face",
+                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE);
+        setupParentKeyguardToggle("settings_disable_parent_iris",
+                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS);
+        setupParentKeyguardToggle("settings_disable_parent_trust_agents",
+                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS);
 
         // Disable FileShuttle on Q for now
         // Supported on R and beyond
@@ -469,6 +402,29 @@ public class SettingsFragment extends PreferenceFragmentCompat
         startActivity(intent);
 
         return true;
+    }
+
+    private void setupParentKeyguardToggle(String key, int policyFlag) {
+        Preference preference = findPreference(key);
+        if (preference != null) {
+            preference.setOnPreferenceChangeListener((pref, newValue) -> {
+                // The parent profile is the only UI that may request changes
+                // to its own lock-screen policy through the Work Profile owner.
+                if (Utility.isProfileOwner(requireContext())) {
+                    return false;
+                }
+                Intent request = new Intent(net.typeblog.shelter.ui.DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+                request.putExtra(net.typeblog.shelter.ui.DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
+                request.putExtra(net.typeblog.shelter.ui.DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, (Boolean) newValue);
+                try {
+                    Utility.transferIntentToProfile(requireContext(), request);
+                    startActivity(request);
+                    return true;
+                } catch (RuntimeException e) {
+                    return false;
+                }
+            });
+        }
     }
 
     @Override
