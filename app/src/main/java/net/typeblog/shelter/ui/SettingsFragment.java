@@ -509,7 +509,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 startActivity(request);
                 return true;
             } catch (RuntimeException e) {
-                android.util.Log.e("Shelter", "Unable to dispatch parent keyguard policy request", e);
                 return false;
             }
 
