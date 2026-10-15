@@ -38,25 +38,29 @@
             android:summary="@string/settings_work_profile_apps_control_desc"
             android:defaultValue="false" />
 
-        <Preference
-            android:key="settings_reset_parent_trust_agents"
-            android:title="@string/reset_parent_trust_agents"
-            android:summary="@string/reset_parent_trust_agents_summary" />
-        
-        <Preference
-            android:key="settings_reset_parent_fingerprint"
-            android:title="@string/reset_parent_fingerprint"
-            android:summary="@string/reset_parent_fingerprint_summary" />
-        
-        <Preference
-            android:key="settings_reset_parent_face"
-            android:title="@string/reset_parent_face"
-            android:summary="@string/reset_parent_face_summary" />
-        
-        <Preference
-            android:key="settings_reset_parent_iris"
-            android:title="@string/reset_parent_iris"
-            android:summary="@string/reset_parent_iris_summary" />
+        <androidx.preference.CheckBoxPreference
+            android:key="settings_disable_parent_fingerprint"
+            android:title="@string/disable_parent_fingerprint"
+            android:summary="@string/disable_parent_fingerprint_summary"
+            android:defaultValue="false" />
+
+        <androidx.preference.CheckBoxPreference
+            android:key="settings_disable_parent_face"
+            android:title="@string/disable_parent_face"
+            android:summary="@string/disable_parent_face_summary"
+            android:defaultValue="false" />
+
+        <androidx.preference.CheckBoxPreference
+            android:key="settings_disable_parent_iris"
+            android:title="@string/disable_parent_iris"
+            android:summary="@string/disable_parent_iris_summary"
+            android:defaultValue="false" />
+
+        <androidx.preference.CheckBoxPreference
+            android:key="settings_disable_parent_trust_agents"
+            android:title="@string/disable_parent_trust_agents"
+            android:summary="@string/disable_parent_trust_agents_summary"
+            android:defaultValue="false" />
 
     </androidx.preference.PreferenceCategory>
 
