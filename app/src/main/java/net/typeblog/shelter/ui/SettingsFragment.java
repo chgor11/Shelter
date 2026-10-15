@@ -332,14 +332,11 @@ public class SettingsFragment extends PreferenceFragmentCompat
         mPrefSkipForeground
                 .setOnPreferenceChangeListener(this);
 
-        setupParentKeyguardToggle("settings_disable_parent_fingerprint",
-                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT);
-        setupParentKeyguardToggle("settings_disable_parent_face",
-                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE);
-        setupParentKeyguardToggle("settings_disable_parent_iris",
-                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS);
-        setupParentKeyguardToggle("settings_disable_parent_trust_agents",
-                android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS);
+        // Use the same standard AndroidX Preference listener path as the clipboard toggle.
+        findPreference("settings_disable_parent_fingerprint").setOnPreferenceChangeListener(this);
+        findPreference("settings_disable_parent_face").setOnPreferenceChangeListener(this);
+        findPreference("settings_disable_parent_iris").setOnPreferenceChangeListener(this);
+        findPreference("settings_disable_parent_trust_agents").setOnPreferenceChangeListener(this);
 
         // Disable FileShuttle on Q for now
         // Supported on R and beyond
@@ -402,29 +399,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
         startActivity(intent);
 
         return true;
-    }
-
-    private void setupParentKeyguardToggle(String key, int policyFlag) {
-        Preference preference = findPreference(key);
-        if (preference != null) {
-            preference.setOnPreferenceChangeListener((pref, newValue) -> {
-                // The parent profile is the only UI that may request changes
-                // to its own lock-screen policy through the Work Profile owner.
-                if (Utility.isProfileOwner(requireContext())) {
-                    return false;
-                }
-                Intent request = new Intent(net.typeblog.shelter.ui.DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-                request.putExtra(net.typeblog.shelter.ui.DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
-                request.putExtra(net.typeblog.shelter.ui.DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, (Boolean) newValue);
-                try {
-                    Utility.transferIntentToProfile(requireContext(), request);
-                    startActivity(request);
-                    return true;
-                } catch (RuntimeException e) {
-                    return false;
-                }
-            });
-        }
     }
 
     @Override
@@ -503,6 +477,41 @@ public class SettingsFragment extends PreferenceFragmentCompat
             );
 
             return true;
+
+        } else if ("settings_disable_parent_fingerprint".equals(preference.getKey())
+                || "settings_disable_parent_face".equals(preference.getKey())
+                || "settings_disable_parent_iris".equals(preference.getKey())
+                || "settings_disable_parent_trust_agents".equals(preference.getKey())) {
+
+            if (Utility.isProfileOwner(requireContext())) {
+                return false;
+            }
+            int policyFlag;
+            switch (preference.getKey()) {
+                case "settings_disable_parent_fingerprint":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+                    break;
+                case "settings_disable_parent_face":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+                    break;
+                case "settings_disable_parent_iris":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+                    break;
+                default:
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+                    break;
+            }
+            Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
+            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, (Boolean) newState);
+            try {
+                Utility.transferIntentToProfile(requireContext(), request);
+                startActivity(request);
+                return true;
+            } catch (RuntimeException e) {
+                android.util.Log.e("Shelter", "Unable to dispatch parent keyguard policy request", e);
+                return false;
+            }
 
         } else if (preference ==
                 mPrefWorkToPersonalClipboard) {
