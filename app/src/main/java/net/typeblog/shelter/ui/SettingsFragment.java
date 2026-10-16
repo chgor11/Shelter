@@ -517,7 +517,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
             } catch (RuntimeException e) {
                 mPendingKeyguardPreferenceKey = null;
-                android.util.Log.e("Shelter", "Unable to dispatch parent keyguard policy request", e);
                 return false;
             }
             // Keep the old visual/persisted value until the destination confirms success.
