@@ -54,6 +54,10 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private static final String SETTINGS_WORK_PROFILE_APPS_CONTROL =
             "settings_work_profile_apps_control";
 
+    private static final int REQUEST_PARENT_KEYGUARD_POLICY = 4107;
+    private String mPendingKeyguardPreferenceKey = null;
+    private boolean mPendingKeyguardPreferenceValue = false;
+
     private static final int[] AUTO_FREEZE_DELAY_SECONDS =
             new int[]{0, 60, 2 * 60, 5 * 60};
 
@@ -505,12 +509,19 @@ public class SettingsFragment extends PreferenceFragmentCompat
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, (Boolean) newState);
             try {
+                // Match the standard Preference listener, but do not commit the
+                // checkbox until the cross-profile operation reports success.
                 Utility.transferIntentToProfile(requireContext(), request);
-                startActivity(request);
-                return true;
+                mPendingKeyguardPreferenceKey = preference.getKey();
+                mPendingKeyguardPreferenceValue = (Boolean) newState;
+                startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
             } catch (RuntimeException e) {
+                mPendingKeyguardPreferenceKey = null;
+                android.util.Log.e("Shelter", "Unable to dispatch parent keyguard policy request", e);
                 return false;
             }
+            // Keep the old visual/persisted value until the destination confirms success.
+            return false;
 
         } else if (preference ==
                 mPrefWorkToPersonalClipboard) {
@@ -653,4 +664,27 @@ public class SettingsFragment extends PreferenceFragmentCompat
             return true;
         }
     }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PARENT_KEYGUARD_POLICY) {
+            return;
+        }
+        String key = mPendingKeyguardPreferenceKey;
+        boolean value = mPendingKeyguardPreferenceValue;
+        mPendingKeyguardPreferenceKey = null;
+        if (key == null) {
+            return;
+        }
+        if (resultCode == android.app.Activity.RESULT_OK) {
+            CheckBoxPreference preference = findPreference(key);
+            if (preference != null) {
+                preference.setChecked(value);
+            }
+        } else {
+            android.util.Log.e("Shelter", "Work Profile rejected parent keyguard policy request for " + key);
+        }
+    }
+
 }
