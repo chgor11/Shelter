@@ -1,736 +1,1258 @@
 package net.typeblog.shelter.ui;
 
-import android.app.ActivityManager;
-import android.content.Context;
+import android.Manifest;
+import android.app.Activity;
+import android.app.PendingIntent;
+import android.app.ProgressDialog;
+import android.app.admin.DevicePolicyManager;
+import android.hardware.biometrics.BiometricManager;
+import android.hardware.biometrics.BiometricPrompt;
+import android.os.CancellationSignal;
+import android.content.ComponentName;
 import android.content.Intent;
+import android.content.ServiceConnection;
+import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.UserManager;
+import android.os.IBinder;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.SystemClock;
 import android.os.RemoteException;
-import android.provider.Settings;
-import android.view.View;
+import android.os.StrictMode;
+import android.view.LayoutInflater;
+import android.view.ViewGroup;
+import android.view.WindowManager;
+import android.widget.ProgressBar;
+import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
-import androidx.core.graphics.Insets;
-import androidx.core.view.ViewCompat;
-import androidx.core.view.WindowInsetsCompat;
-import androidx.preference.CheckBoxPreference;
-import androidx.preference.DropDownPreference;
-import androidx.preference.Preference;
-import androidx.preference.PreferenceFragmentCompat;
+import androidx.fragment.app.Fragment;
+import androidx.fragment.app.FragmentActivity;
+import androidx.core.content.ContextCompat;
 
 import net.typeblog.shelter.R;
-import net.typeblog.shelter.services.IShelterService;
+import net.typeblog.shelter.ShelterApplication;
+import net.typeblog.shelter.receivers.ShelterDeviceAdminReceiver;
+import net.typeblog.shelter.services.FreezeService;
+import net.typeblog.shelter.services.IAppInstallCallback;
+import net.typeblog.shelter.services.IFileShuttleService;
+import net.typeblog.shelter.services.IFileShuttleServiceCallback;
+import net.typeblog.shelter.util.AuthenticationUtility;
+import net.typeblog.shelter.util.FileProviderProxy;
+import net.typeblog.shelter.util.InstallationProgressListener;
+import net.typeblog.shelter.util.LocalStorageManager;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.Utility;
+import net.typeblog.shelter.util.WorkProfileAuthenticationState;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
+import java.util.Collections;
 
-public class SettingsFragment extends PreferenceFragmentCompat
-        implements Preference.OnPreferenceChangeListener {
+// DummyActivity does nothing about presenting any UI
+// It is a wrapper over various different operations
+// that might be required to perform across user profiles
+// which is only possible through Intents that are in
+// the crossProfileIntentFilter
+public class DummyActivity extends SecureActivity {
+    public static final String FINALIZE_PROVISION = "net.typeblog.shelter.action.FINALIZE_PROVISION";
+    public static final String START_SERVICE = "net.typeblog.shelter.action.START_SERVICE";
+    public static final String AUTHENTICATE_WORK_PROFILE = "net.typeblog.shelter.action.AUTHENTICATE_WORK_PROFILE";
+    public static final String SECURITY_RESPONSE = "net.typeblog.shelter.action.SECURITY_RESPONSE";
+    public static final String SET_PARENT_KEYGUARD_POLICY = "net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY";
+    public static final String EXTRA_KEYGUARD_POLICY_FLAG = "keyguard_policy_flag";
+    public static final String EXTRA_KEYGUARD_POLICY_ENABLED = "keyguard_policy_enabled";
+    /**
+     * SECURITY-CRITICAL:
+     *
+     * Parent-profile request that permanently applies the configured
+     * maximum Work Profile password/security policy. This action MUST
+     * remain signature-protected; it must never be added to either
+     * unsigned-action allow-list.
+     */
+    public static final String APPLY_MAXIMUM_WORK_PROFILE_SECURITY = "net.typeblog.shelter.action.APPLY_MAXIMUM_WORK_PROFILE_SECURITY";
+    public static final String TRY_START_SERVICE = "net.typeblog.shelter.action.TRY_START_SERVICE";
+    public static final String INSTALL_PACKAGE = "net.typeblog.shelter.action.INSTALL_PACKAGE";
+    public static final String UNINSTALL_PACKAGE = "net.typeblog.shelter.action.UNINSTALL_PACKAGE";
+    public static final String UNFREEZE_AND_LAUNCH = "net.typeblog.shelter.action.UNFREEZE_AND_LAUNCH";
+    public static final String PUBLIC_FREEZE_ALL = "net.typeblog.shelter.action.PUBLIC_FREEZE_ALL";
+    public static final String FREEZE_ALL_IN_LIST = "net.typeblog.shelter.action.FREEZE_ALL_IN_LIST";
+    // If we use the same intent for parent -> profile and profile -> parent, the user will
+    // be prompted with the action chooser with only one choice in it when the intent is
+    // forwarded by Utility.transferIntentToProfile()
+    // This is a bad experience, so we use two to avoid this.
+    public static final String START_FILE_SHUTTLE = "net.typeblog.shelter.action.START_FILE_SHUTTLE";
+    public static final String START_FILE_SHUTTLE_2 = "net.typeblog.shelter.action.START_FILE_SHUTTLE_2";
+    public static final String SYNCHRONIZE_PREFERENCE = "net.typeblog.shelter.action.SYNCHRONIZE_PREFERENCE";
+    public static final String PACKAGEINSTALLER_CALLBACK = "net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK";
 
-    private static final String SETTINGS_VERSION = "settings_version";
-    private static final String SETTINGS_SOURCE_CODE = "settings_source_code";
-    private static final String SETTINGS_TRANSLATE = "settings_translate";
-    private static final String SETTINGS_BUG_REPORT = "settings_bug_report";
-    private static final String SETTINGS_PATREON = "settings_patreon";
-    private static final String SETTINGS_CROSS_PROFILE_FILE_CHOOSER =
-            "settings_cross_profile_file_chooser";
-    private static final String SETTINGS_BLOCK_CONTACTS_SEARCHING =
-            "settings_block_contacts_searching";
-    private static final String SETTINGS_AUTO_FREEZE_SERVICE =
-            "settings_auto_freeze_service";
-    private static final String SETTINGS_AUTO_FREEZE_DELAY =
-            "settings_auto_freeze_delay";
-    private static final String SETTINGS_SKIP_FOREGROUND =
-            "settings_dont_freeze_foreground";
-    private static final String SETTINGS_WORK_TO_PERSONAL_CLIPBOARD =
-            "settings_work_to_personal_clipboard";
-    private static final String SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL =
-            "settings_work_profile_app_install_uninstall";
-    private static final String SETTINGS_WORK_PROFILE_APPS_CONTROL =
-            "settings_work_profile_apps_control";
+    // SECURITY-CRITICAL:
+    // Every management action below must carry a valid HMAC signature.
+    // FINALIZE_PROVISION remains the only unsigned lifecycle exception.
+    // Only this provisioning action is allowed without an HMAC signature.
+    // All operational/security-sensitive actions must be authenticated.
+    private static final List<String> ACTIONS_ALLOWED_WITHOUT_SIGNATURE = Arrays.asList(FINALIZE_PROVISION);
 
-    private static final int REQUEST_PARENT_KEYGUARD_POLICY = 4107;
-    private String mPendingKeyguardPreferenceKey = null;
-    private boolean mPendingKeyguardPreferenceValue = false;
-    private boolean mPendingKeyguardPreferencePreviousValue = false;
+    /**
+     * SECURITY-CRITICAL:
+     * The old same-process exception has been removed for management actions.
+     * Being in Shelter's process is NOT a substitute for HMAC authentication.
+     *
+     * registerSameProcessRequest() is therefore no longer used for INSTALL,
+     * UNINSTALL or UNFREEZE_AND_LAUNCH.
+     */
 
-    private static final int[] AUTO_FREEZE_DELAY_SECONDS =
-            new int[]{0, 60, 2 * 60, 5 * 60};
+    /**
+     * SECURITY-CRITICAL:
+     * These actions require BOTH a valid HMAC intent signature and a fresh
+     * Work Profile credential authentication lease.
+     *
+     * The lease is checked only in the Profile Owner (Work Profile) instance.
+     * Parent-profile DummyActivity instances are routing/proxy stages; they
+     * must not check the Work Profile's process-local lease because that lease
+     * deliberately does not cross the profile/process boundary.
+     *
+     * PUBLIC_FREEZE_ALL is intentionally not in this list: it is a parent-side
+     * routing entry. It must be HMAC-signed, and it immediately forwards a
+     * signed FREEZE_ALL_IN_LIST request to the Work Profile, where the actual
+     * freeze operation is protected by the five-minute lease.
+     *
+     * Do not add TRY_START_SERVICE here: it is a pre-authentication availability
+     * probe. Do not add SECURITY_RESPONSE: it is a security/admin lifecycle
+     * response and must remain usable independently of the user lease.
+     */
+    private static final List<String> ACTIONS_REQUIRING_AUTHENTICATION_LEASE =
+            Arrays.asList(
+                    START_SERVICE,
+                    FREEZE_ALL_IN_LIST,
+                    START_FILE_SHUTTLE,
+                    START_FILE_SHUTTLE_2,
+                    SYNCHRONIZE_PREFERENCE,
+                    APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
+                    SET_PARENT_KEYGUARD_POLICY,
+                    INSTALL_PACKAGE,
+                    UNINSTALL_PACKAGE,
+                    UNFREEZE_AND_LAUNCH);
 
-    private SettingsManager mManager =
-            SettingsManager.getInstance();
+    private static final int REQUEST_INSTALL_PACKAGE = 1;
+    private static final int REQUEST_PERMISSION_EXTERNAL_STORAGE= 2;
+    private static final int REQUEST_PERMISSION_POST_NOTIFICATIONS = 3;
 
-    private IShelterService mServiceWork = null;
-
-    private CheckBoxPreference mPrefCrossProfileFileChooser = null;
-    private CheckBoxPreference mPrefBlockContactsSearching = null;
-    private CheckBoxPreference mPrefAutoFreezeService = null;
-    private CheckBoxPreference mPrefSkipForeground = null;
-    private CheckBoxPreference mPrefWorkToPersonalClipboard = null;
-    private CheckBoxPreference mPrefWorkProfileAppInstallUninstall = null;
-    private CheckBoxPreference mPrefWorkProfileAppsControl = null;
-
-    private DropDownPreference mPrefAutoFreezeDelay = null;
+    private static boolean sHasRequestedPermission = false;
+    private boolean mIsProfileOwner = false;
+    private DevicePolicyManager mPolicyManager = null;
 
     @Override
-    public void onViewCreated(
-            @NonNull View view,
-            @Nullable Bundle savedInstanceState) {
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
 
-        super.onViewCreated(
-                view,
-                savedInstanceState
-        );
+        mPolicyManager = getSystemService(DevicePolicyManager.class);
+        mIsProfileOwner = mPolicyManager.isProfileOwnerApp(getPackageName());
+        if (mIsProfileOwner) {
+            // If we are the profile owner, enforce all Work Profile policies.
+            Utility.enforceWorkProfilePolicies(this);
+            Utility.enforceUserRestrictions(this);
+            SettingsManager.getInstance().applyAll();
 
-        ViewCompat.setOnApplyWindowInsetsListener(
-                view.findViewById(
-                        androidx.preference.R.id.recycler_view
-                ),
-                (v, windowInsets) -> {
-
-                    Insets insets =
-                            windowInsets.getInsets(
-                                    WindowInsetsCompat.Type.systemBars()
-                            );
-
-                    v.setPaddingRelative(
-                            0,
-                            0,
-                            0,
-                            insets.bottom
-                    );
-
-                    return WindowInsetsCompat.CONSUMED;
+            synchronized (DummyActivity.class) {
+                // Do not show permission dialog during finalization -- it will conflict with the provisioning UI
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !sHasRequestedPermission
+                        && !FINALIZE_PROVISION.equals(getIntent().getAction())) {
+                    // Avoid requesting permission multiple times in one session
+                    // This also prevents multiple instances of DummyActivity from being blocked on each other
+                    sHasRequestedPermission = true;
+                    // We pretty much only send notifications to keep the process inside work profile alive
+                    // as such, only request the notification permission from inside the profile
+                    // This will ideally be shown and done when the user sees the app list UI for the first time
+                    if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                            != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PERMISSION_POST_NOTIFICATIONS);
+                        // Continue once the request has been completed (see onRequestPermissionResult)
+                        return;
+                    }
                 }
-        );
+            }
+        }
+
+        init();
     }
 
-    @Override
-    public void onCreatePreferences(
-            Bundle bundle,
-            String s) {
-
-        addPreferencesFromResource(
-                R.xml.preferences_settings
-        );
-        android.util.Log.i("Shelter", "Loaded personal Settings preferences_settings.xml");
+    private void init() {
+        Intent intent = getIntent();
 
         /*
-         * SECURITY POLICY ADMINISTRATION ENTRY
-         *
-         * Opens the separate Device Policy Manager page.
-         *
-         * IMPORTANT:
-         * Security policies inside this page MUST NOT
-         * be applied immediately.
-         *
-         * Required flow:
-         *
-         * Change
-         *   ->
-         * Pending Change
-         *   ->
-         * Review Summary
-         *   ->
-         * User Confirmation
-         *   ->
-         * Fresh Authentication
-         *   ->
-         * Apply Policy
-         *
-         * Adding direct policy execution here is forbidden.
+         * SECURITY-CRITICAL:
+         * HMAC authentication is mandatory for every management action.
+         * The only unsigned exception is the provisioning lifecycle action
+         * explicitly listed above.
          */
-
-        Preference devicePolicyManager =
-                findPreference("device_policy_manager");
-
-        if (devicePolicyManager != null) {
-
-            devicePolicyManager.setOnPreferenceClickListener(
-                    preference -> {
-
-                        requireActivity()
-                                .getSupportFragmentManager()
-                                .beginTransaction()
-                                .replace(
-                                        R.id.settings_fragment_container,
-                                        new DevicePolicyManagerFragment(),
-                                        "device_policy_manager"
-                                )
-                                .addToBackStack(
-                                        "device_policy_manager"
-                                )
-                                .commit();
-
-                        return true;
-                    }
-            );
+        if (!AuthenticationUtility.checkIntent(intent)
+                && !ACTIONS_ALLOWED_WITHOUT_SIGNATURE.contains(intent.getAction())) {
+            finish();
+            return;
         }
 
-        mServiceWork =
-                IShelterService.Stub.asInterface(
-                        ((Bundle) getActivity()
-                                .getIntent()
-                                .getParcelableExtra("extras"))
-                                .getBinder("profile_service")
-                );
-
-        // Set the displayed version
-        try {
-
-            findPreference(SETTINGS_VERSION)
-                    .setSummary(
-                            getContext()
-                                    .getPackageManager()
-                                    .getPackageInfo(
-                                            getContext()
-                                                    .getPackageName(),
-                                            0
-                                    )
-                                    .versionName
-                    );
-
-        } catch (PackageManager.NameNotFoundException e) {
-            // WTF?
+        /*
+         * SECURITY-CRITICAL:
+         * The five-minute lease is authoritative only in the Work Profile
+         * Profile Owner process. Parent-profile DummyActivity instances only
+         * validate HMAC and forward the request to the Work Profile.
+         */
+        if (mIsProfileOwner
+                && ACTIONS_REQUIRING_AUTHENTICATION_LEASE.contains(intent.getAction())
+                && !WorkProfileAuthenticationState.isValid()) {
+            finish();
+            return;
         }
 
-        // Open source code url on click
-        findPreference(SETTINGS_SOURCE_CODE)
-                .setOnPreferenceClickListener(
-                        this::openSummaryUrl
-                );
-
-        findPreference(SETTINGS_BUG_REPORT)
-                .setOnPreferenceClickListener(
-                        this::openSummaryUrl
-                );
-
-        findPreference(SETTINGS_PATREON)
-                .setOnPreferenceClickListener(
-                        this::openSummaryUrl
-                );
-
-        findPreference(SETTINGS_TRANSLATE)
-                .setOnPreferenceClickListener(
-                        this::openSummaryUrl
-                );
-
-        // === Interactions ===
-
-        mPrefCrossProfileFileChooser =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_CROSS_PROFILE_FILE_CHOOSER
-                );
-
-        mPrefCrossProfileFileChooser.setChecked(
-                mManager.getCrossProfileFileChooserEnabled()
-        );
-
-        mPrefCrossProfileFileChooser
-                .setOnPreferenceChangeListener(this);
-
-        mPrefBlockContactsSearching =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_BLOCK_CONTACTS_SEARCHING
-                );
-
-        mPrefBlockContactsSearching.setChecked(
-                mManager.getBlockContactsSearchingEnabled()
-        );
-
-        mPrefBlockContactsSearching
-                .setOnPreferenceChangeListener(this);
-
-        // Work Profile → Personal Profile clipboard
-        mPrefWorkToPersonalClipboard =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_WORK_TO_PERSONAL_CLIPBOARD
-                );
-
-        mPrefWorkToPersonalClipboard.setChecked(
-                mManager.getWorkToPersonalClipboardEnabled()
-        );
-
-        mPrefWorkToPersonalClipboard
-                .setOnPreferenceChangeListener(this);
-
-        // Allow install or uninstall app
-        mPrefWorkProfileAppInstallUninstall =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_WORK_PROFILE_APP_INSTALL_UNINSTALL
-                );
-
-        mPrefWorkProfileAppInstallUninstall.setChecked(
-                mManager.getWorkProfileAppInstallUninstallEnabled()
-        );
-
-        mPrefWorkProfileAppInstallUninstall
-                .setOnPreferenceChangeListener(this);
-
-        // Allow changing app controls in Work Profile
-        mPrefWorkProfileAppsControl =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_WORK_PROFILE_APPS_CONTROL
-                );
-
-        mPrefWorkProfileAppsControl.setChecked(
-                mManager.getWorkProfileAppsControlEnabled()
-        );
-
-        mPrefWorkProfileAppsControl
-                .setOnPreferenceChangeListener(this);
-
-        // === Services ===
-
-        mPrefAutoFreezeService =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_AUTO_FREEZE_SERVICE
-                );
-
-        mPrefAutoFreezeService.setChecked(
-                mManager.getAutoFreezeServiceEnabled()
-        );
-
-        mPrefAutoFreezeService
-                .setOnPreferenceChangeListener(this);
-
-        mPrefAutoFreezeDelay =
-                findPreference(
-                        SETTINGS_AUTO_FREEZE_DELAY
-                );
-
-        mPrefAutoFreezeDelay
-                .setOnPreferenceChangeListener(this);
-
-        mPrefAutoFreezeDelay.setEntries(
-                Arrays.stream(AUTO_FREEZE_DELAY_SECONDS)
-                        .mapToObj(
-                                (it) -> getString(
-                                        R.string.format_minutes,
-                                        it / 60
-                                )
-                        )
-                        .toArray(String[]::new)
-        );
-
-        mPrefAutoFreezeDelay.setEntryValues(
-                Arrays.stream(AUTO_FREEZE_DELAY_SECONDS)
-                        .mapToObj(String::valueOf)
-                        .toArray(String[]::new)
-        );
-
-        updateAutoFreezeDelay();
-
-        mPrefSkipForeground =
-                (CheckBoxPreference) findPreference(
-                        SETTINGS_SKIP_FOREGROUND
-                );
-
-        mPrefSkipForeground.setChecked(
-                mManager.getSkipForegroundEnabled()
-        );
-
-        mPrefSkipForeground
-                .setOnPreferenceChangeListener(this);
-
-        // These are immediate controls on the main/personal Settings screen.
-        // Handle the click explicitly so the checkbox does not depend on an
-        // AndroidX change-listener return value or cross-profile Activity result.
-        setupParentKeyguardPreference("settings_disable_parent_fingerprint");
-        setupParentKeyguardPreference("settings_disable_parent_face");
-        setupParentKeyguardPreference("settings_disable_parent_iris");
-        setupParentKeyguardPreference("settings_disable_parent_trust_agents");
-
-        // Disable FileShuttle on Q for now
-        // Supported on R and beyond
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
-
-            mPrefCrossProfileFileChooser.setEnabled(
-                    false
-            );
-        }
-
-        // Disable FileShuttle for Android Go
-        // as it requires SYSTEM_ALERT_WINDOW which
-        // is not allowed on Go devices
-        ActivityManager am =
-                (ActivityManager) getContext()
-                        .getSystemService(
-                                Context.ACTIVITY_SERVICE
-                        );
-
-        if (am.isLowRamDevice()) {
-
-            mPrefCrossProfileFileChooser.setEnabled(
-                    false
-            );
+        if (START_SERVICE.equals(intent.getAction())) {            actionStartService();
+        } else if (TRY_START_SERVICE.equals(intent.getAction())) {
+            // Dummy activity with dummy intent won't ever fail :)
+            // This is used for testing if work mode is disabled from MainActivity
+            setResult(RESULT_OK);
+            finish();
+        } else if (INSTALL_PACKAGE.equals(intent.getAction())) {
+            actionInstallPackage();
+        } else if (UNINSTALL_PACKAGE.equals(intent.getAction())) {
+            actionUninstallPackage();
+        } else if (FINALIZE_PROVISION.equals(intent.getAction())) {
+            actionFinalizeProvision();
+        } else if (UNFREEZE_AND_LAUNCH.equals(intent.getAction())) {
+            actionUnfreezeAndLaunch();
+        } else if (PUBLIC_FREEZE_ALL.equals(intent.getAction())) {
+            actionPublicFreezeAll();
+        } else if (FREEZE_ALL_IN_LIST.equals(intent.getAction())) {
+            actionFreezeAllInList();
+        } else if (START_FILE_SHUTTLE.equals(intent.getAction()) || START_FILE_SHUTTLE_2.equals(intent.getAction())) {
+            actionStartFileShuttle();
+        } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
+            actionSynchronizePreference();
+        } else if (SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())) {
+            actionSetParentKeyguardPolicy();
+        } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
+            actionSecurityResponse();
+        } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
+            actionApplyMaximumWorkProfileSecurity();
+        } else {
+            finish();
         }
     }
 
     @Override
-    public void onResume() {
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
 
-        super.onResume();
+        if (intent.getAction().equals(PACKAGEINSTALLER_CALLBACK)) {
+            int status = intent.getExtras().getInt(PackageInstaller.EXTRA_STATUS);
 
-        // Update all preferences that may change when returning
-        // i.e. preferences that open another dialog for picking
-        updateAutoFreezeDelay();
-    }
-
-    private void updateAutoFreezeDelay() {
-
-        mPrefAutoFreezeDelay.setSummary(
-                getString(
-                        R.string.format_minutes,
-                        mManager.getAutoFreezeDelay() / 60
-                )
-        );
-    }
-
-    private boolean openSummaryUrl(
-            Preference pref) {
-
-        Intent intent =
-                new Intent(Intent.ACTION_VIEW);
-
-        intent.setData(
-                Uri.parse(
-                        pref.getSummary().toString()
-                )
-        );
-
-        startActivity(intent);
-
-        return true;
-    }
-
-    private void setupParentKeyguardPreference(String key) {
-        CheckBoxPreference checkbox = findPreference(key);
-        if (checkbox == null) {
-            android.util.Log.e("Shelter", "Missing parent keyguard checkbox in preferences_settings.xml: " + key);
-            return;
-        }
-        checkbox.setOnPreferenceChangeListener(null);
-        checkbox.setOnPreferenceClickListener(clicked -> {
-            CheckBoxPreference control = (CheckBoxPreference) clicked;
-            // Preference click listeners run BEFORE CheckBoxPreference toggles
-            // itself. Calculate the requested state as the inverse of its current state.
-            boolean previousValue = control.isChecked();
-            boolean enabled = !previousValue;
-            android.util.Log.i("Shelter", "Parent keyguard checkbox clicked: key="
-                    + key + ", previous=" + previousValue + ", requested=" + enabled);
-
-            if (Utility.isProfileOwner(requireContext())) {
-                android.util.Log.e("Shelter", "Refusing parent keyguard toggle from Work Profile instance: " + key);
-                return true;
-            }
-
-            int policyFlag;
-            switch (key) {
-                case "settings_disable_parent_fingerprint":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+            switch (status) {
+                case PackageInstaller.STATUS_PENDING_USER_ACTION:
+                    startActivity((Intent) intent.getExtras().get(Intent.EXTRA_INTENT));
                     break;
-                case "settings_disable_parent_face":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE;
-                    break;
-                case "settings_disable_parent_iris":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-                    break;
-                case "settings_disable_parent_trust_agents":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+                case PackageInstaller.STATUS_SUCCESS:
+                    appInstallFinished(Activity.RESULT_OK);
                     break;
                 default:
-                    android.util.Log.e("Shelter", "Unknown parent keyguard checkbox: " + key);
-                    return true;
+                    appInstallFinished(Activity.RESULT_CANCELED);
+                    break;
             }
+        }
+    }
 
-            Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-            // DummyActivity declares CATEGORY_DEFAULT in its manifest filter. Add
-            // the same category to the query intent so PackageManager can resolve
-            // the registered forwarding activity for this action.
-            request.addCategory(Intent.CATEGORY_DEFAULT);
-            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
-            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, enabled);
-            try {
-                // Preserve Shelter's established IPC route: resolve the other-profile
-                // forwarding activity, then HMAC-sign the resolved request. Do not
-                // bypass this helper with a locally targeted or implicit launch.
-                Utility.transferIntentToProfile(requireContext(), request);
-                mPendingKeyguardPreferenceKey = key;
-                mPendingKeyguardPreferenceValue = enabled;
-                mPendingKeyguardPreferencePreviousValue = previousValue;
-                // Change the UI immediately on tap. If the Work Profile rejects the
-                // request or cannot apply the policy, onActivityResult restores it.
-                control.setChecked(enabled);
-                startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
-                android.util.Log.i("Shelter", "Started signed DummyActivity route for parent keyguard policy: key="
-                        + key + ", enabled=" + enabled + ", component=" + request.getComponent());
-            } catch (RuntimeException e) {
-                control.setChecked(previousValue);
-                mPendingKeyguardPreferenceKey = null;
-                android.util.Log.e("Shelter", "Failed to dispatch parent keyguard policy request: key="
-                        + key, e);
-            }
-            // Return true to consume the click; otherwise AndroidX performs a
-            // second automatic toggle and can undo the explicit state above.
-            return true;
-        });
-        android.util.Log.i("Shelter", "Registered parent keyguard click handler: " + key);
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == REQUEST_INSTALL_PACKAGE) {
+            appInstallFinished(resultCode);
+        }
     }
 
     @Override
-    public boolean onPreferenceChange(
-            Preference preference,
-            Object newState) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_PERMISSION_EXTERNAL_STORAGE) {
+            if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                doStartFileShuttle();
+            } else {
+                finish();
+            }
+        } else if (requestCode == REQUEST_PERMISSION_POST_NOTIFICATIONS) {
+            // Regardless of the result, continue initialization
+            // This is fine because most functionalities will work anyway; it will just be a bit buggy
+            // and unreliable.
+            init();
+        } else {
+            super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        }
+    }
 
-        android.util.Log.i("Shelter", "Preference change callback: key="
-                + preference.getKey() + ", newState=" + newState);
-        if (preference ==
-                mPrefCrossProfileFileChooser) {
+    private void actionFinalizeProvision() {
+        if (mIsProfileOwner) {
+            // Only notify the main profile on pre-Oreo
+            // After Oreo, since we use the activity-based finalization flow,
+            // the setup wizard will wait until we finish finalization before returning
+            // (Note: the actual finalization is done by common code in onCreate)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+                // This is the action used by DeviceAdminReceiver to finalize the setup
+                // The work has been finished in onCreate(), now we just have to
+                // inform the main profile about this
+                Intent intent = new Intent(FINALIZE_PROVISION);
+                // We don't need signature for this intent
+                Utility.transferIntentToProfileUnsigned(this, intent);
+                startActivity(intent);
+            }
+            finish();
+        } else {
+            // Set the flag telling MainActivity that we have now finished provisioning
+            LocalStorageManager.getInstance()
+                    .setBoolean(LocalStorageManager.PREF_HAS_SETUP, true);
+            LocalStorageManager.getInstance()
+                    .setBoolean(LocalStorageManager.PREF_IS_SETTING_UP, false);
+            Intent intent = new Intent(SetupWizardActivity.ACTION_PROFILE_PROVISIONED);
+            intent.setComponent(new ComponentName(this, SetupWizardActivity.class));
+            startActivity(intent);
+            Toast.makeText(this, getString(R.string.provision_finished), Toast.LENGTH_LONG).show();
+            finish();
+        }
+    }
 
-            boolean enabled =
-                    (boolean) newState;
+    /**
+     * Authentication UI for the Work Profile. This Activity is exported only
+     * so Android's cross-profile intent forwarding can resolve it; the caller
+     * is still authenticated with Shelter's existing signed Intent mechanism.
+     */
+    public static class WorkProfileAuthenticationActivity extends SecureActivity {
+        private static final String TAG = "ShelterWorkProfileAuth";
 
-            if (!enabled) {
+        @Override
+        protected void onCreate(@Nullable Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
 
-                mManager.setCrossProfileFileChooserEnabled(
-                        false
-                );
-
-                return true;
+            if (!AuthenticationUtility.checkIntent(getIntent())) {
+                setResult(Activity.RESULT_CANCELED);
+                finish();
+                return;
             }
 
-            // The Work Profile provider reads files from the Personal Profile.
-            // Therefore special storage/overlay access is needed only in the
-            // Personal Profile instance; never request these permissions in Work.
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-                    && !Utility.isProfileOwner(requireContext())) {
-                boolean hasPermission = ensureSpecialAccessPermission(
-                        () -> {
-                            try {
-                                // When this UI runs in Work, mServiceWork is the
-                                // Personal Profile service. Otherwise check locally.
-                                return Utility.isProfileOwner(requireContext())
-                                        ? mServiceWork.hasAllFileAccessPermission()
-                                        : Utility.checkAllFileAccessPermission();
-                            } catch (RemoteException e) {
-                                return false;
-                            }
-                        },
-                        R.string.request_storage_manager,
-                        Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION
-                );
-                if (!hasPermission) {
-                    return false;
+            if (savedInstanceState == null) {
+                getSupportFragmentManager().beginTransaction()
+                        .add(new AuthenticationFragment(), TAG)
+                        .commit();
+            }
+        }
+
+        public static class AuthenticationFragment extends Fragment {
+            private static final String STATE_STARTED = "authentication_started";
+            private boolean mStarted;
+
+            @Override
+            public void onCreate(@Nullable Bundle savedInstanceState) {
+                super.onCreate(savedInstanceState);
+                setRetainInstance(true);
+                mStarted = savedInstanceState != null
+                        && savedInstanceState.getBoolean(STATE_STARTED, false);
+            }
+
+            @Override
+            public void onSaveInstanceState(@NonNull Bundle outState) {
+                outState.putBoolean(STATE_STARTED, mStarted);
+                super.onSaveInstanceState(outState);
+            }
+
+            @Override
+            public void onResume() {
+                super.onResume();
+                if (!mStarted) {
+                    mStarted = true;
+                    startAuthentication();
+                }
+            }
+
+            private void finishAuthentication(int resultCode) {
+                Activity activity = getActivity();
+                if (activity != null && !activity.isFinishing()) {
+                    activity.setResult(resultCode);
+                    activity.finish();
+                }
+            }
+
+            private void startAuthentication() {
+                Activity activity = getActivity();
+                if (activity == null) {
+                    return;
                 }
 
-                hasPermission = ensureSpecialAccessPermission(
-                        () -> {
-                            try {
-                                return Utility.isProfileOwner(requireContext())
-                                        ? mServiceWork.hasSystemAlertPermission()
-                                        : Utility.checkSystemAlertPermission(requireContext());
-                            } catch (RemoteException e) {
-                                return false;
-                            }
-                        },
-                        R.string.request_system_alert,
-                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION
-                );
-                if (!hasPermission) {
-                    return false;
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
                 }
-            }
 
-            mManager.setCrossProfileFileChooserEnabled(
-                    true
-            );
+                BiometricManager manager =
+                        activity.getSystemService(BiometricManager.class);
+                if (manager == null) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
 
-            return true;
+                final int authenticators =
+                        BiometricManager.Authenticators.DEVICE_CREDENTIAL;
 
-        } else if (preference ==
-                mPrefBlockContactsSearching) {
+                int availability = manager.canAuthenticate(authenticators);
 
-            mManager.setBlockContactsSearchingEnabled(
-                    (boolean) newState
-            );
+                // No PIN/pattern/password exists for this profile.
+                // The requested policy treats this as successful authentication.
+                if (availability == BiometricPrompt.BIOMETRIC_ERROR_NO_DEVICE_CREDENTIAL) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
 
-            return true;
+                if (availability != BiometricManager.BIOMETRIC_SUCCESS) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                    return;
+                }
 
-        } else if (preference ==
-                mPrefWorkToPersonalClipboard) {
+                try {
+                    BiometricPrompt prompt = new BiometricPrompt.Builder(activity)
+                            .setTitle(getString(R.string.app_name))
+                            .setSubtitle("Unlock Work Profile")
+                            .setDescription("Enter your Work Profile PIN, pattern, or password.")
+                            .setAllowedAuthenticators(authenticators)
+                            .build();
 
-            mManager.setWorkToPersonalClipboardEnabled(
-                    (boolean) newState
-            );
+                    prompt.authenticate(
+                            new CancellationSignal(),
+                            activity.getMainExecutor(),
+                            new BiometricPrompt.AuthenticationCallback() {
+                                @Override
+                                public void onAuthenticationSucceeded(
+                                        BiometricPrompt.AuthenticationResult result) {
+                                    if (result.getAuthenticationType() ==
+                                            BiometricPrompt.AUTHENTICATION_RESULT_TYPE_DEVICE_CREDENTIAL) {
+                                        // SECURITY-CRITICAL:
+                                        // Grant the five-minute lease only inside
+                                        // the Work Profile process after a real
+                                        // Work Profile device-credential success.
+                                        long expiresAt =
+                                                WorkProfileAuthenticationState.grant();
 
-            return true;
+                                        Intent resultIntent = new Intent();
+                                        resultIntent.putExtra(
+                                                WorkProfileAuthenticationState.EXTRA_AUTH_EXPIRES_AT,
+                                                expiresAt);
 
-        } else if (preference ==
-                mPrefWorkProfileAppInstallUninstall) {
-
-            mManager.setWorkProfileAppInstallUninstallEnabled(
-                    (boolean) newState
-            );
-
-            return true;
-
-        } else if (preference ==
-                mPrefWorkProfileAppsControl) {
-
-            mManager.setWorkProfileAppsControlEnabled(
-                    (boolean) newState
-            );
-
-            return true;
-
-        } else if (preference ==
-                mPrefAutoFreezeService) {
-
-            mManager.setAutoFreezeServiceEnabled(
-                    (boolean) newState
-            );
-
-            return true;
-
-        } else if (preference ==
-                mPrefAutoFreezeDelay) {
-
-            mManager.setAutoFreezeDelay(
-                    Integer.parseInt(
-                            (String) newState
-                    )
-            );
-
-            updateAutoFreezeDelay();
-
-            return true;
-
-        } else if (preference ==
-                mPrefSkipForeground) {
-
-            boolean enabled =
-                    (boolean) newState;
-
-            if (!enabled) {
-
-                mManager.setSkipForegroundEnabled(
-                        false
-                );
-
-                return true;
-            }
-
-            boolean hasPermission =
-                    ensureSpecialAccessPermission(
-                            () -> {
-
-                                try {
-
-                                    return mServiceWork
-                                            .hasUsageStatsPermission()
-                                            && Utility
-                                            .checkUsageStatsPermission(
-                                                    getContext()
-                                            );
-
-                                } catch (RemoteException e) {
-
-                                    return false;
+                                        Activity activity = getActivity();
+                                        if (activity != null && !activity.isFinishing()) {
+                                            activity.setResult(Activity.RESULT_OK, resultIntent);
+                                            activity.finish();
+                                        }
+                                    } else {
+                                        finishAuthentication(Activity.RESULT_CANCELED);
+                                    }
                                 }
-                            },
-                            R.string.request_usage_stats,
-                            Settings.ACTION_USAGE_ACCESS_SETTINGS
+
+                                @Override
+                                public void onAuthenticationError(
+                                        int errorCode, CharSequence errString) {
+                                    finishAuthentication(Activity.RESULT_CANCELED);
+                                }
+                            });
+                } catch (RuntimeException e) {
+                    finishAuthentication(Activity.RESULT_CANCELED);
+                }
+            }
+        }
+    }
+
+    private void actionStartService() {
+        // This needs to be foreground because this activity won't be able to hold
+        // the ServiceConnection to it.
+        final ShelterApplication application = (ShelterApplication) getApplication();
+        final long sessionExpiresAt =
+                WorkProfileAuthenticationState.getExpiresAtElapsedRealtime();
+
+        application.bindShelterService(new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                Intent data = new Intent();
+                Bundle bundle = new Bundle();
+                bundle.putBinder("service", service);
+                data.putExtra("extra", bundle);
+                setResult(RESULT_OK, data);
+
+                /*
+                 * SECURITY-CRITICAL:
+                 *
+                 * START_SERVICE creates the Work Profile service binding only
+                 * after the five-minute authentication lease has been granted.
+                 * Schedule removal of this binding at the exact lease expiry.
+                 *
+                 * The expiry timestamp is captured for this session. Before
+                 * unbinding, verify that the same lease is still current. This
+                 * prevents an old delayed callback from unbinding a newer
+                 * authenticated session.
+                 *
+                 * This unbinds the Work Profile ShelterApplication's binding;
+                 * it does not stop KillerService or any unrelated listener.
+                 */
+                if (sessionExpiresAt > 0L) {
+                    long delay = Math.max(
+                            0L,
+                            sessionExpiresAt - SystemClock.elapsedRealtime());
+
+                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                        if (WorkProfileAuthenticationState.getExpiresAtElapsedRealtime()
+                                        == sessionExpiresAt
+                                && !WorkProfileAuthenticationState.isValid()) {
+                            application.unbindShelterService();
+                        }
+                    }, delay);
+                }
+
+                finish();
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                // dummy
+            }
+        }, true);
+    }
+
+    private void actionInstallPackage() {
+        Uri uri = null;
+        if (getIntent().hasExtra("package")) {
+            uri = Uri.fromParts("package", getIntent().getStringExtra("package"), null);
+        }
+        StrictMode.VmPolicy policy = StrictMode.getVmPolicy();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || getIntent().hasExtra("direct_install_apk")) {
+            if (getIntent().hasExtra("apk")) {
+                // I really have no idea about why the "package:" uri do not work
+                // after Android O, anyway we fall back to using the apk path...
+                // Since I have plan to support pre-O in later versions, I keep this
+                // branch in case that we reduce minSDK in the future.
+                uri = Uri.fromFile(new File(getIntent().getStringExtra("apk")));
+            } else if (getIntent().hasExtra("direct_install_apk")) {
+                // Directly install an APK inside the profile
+                // The APK will be an Uri from our own FileProviderProxy
+                // which points to an opened Fd in another profile.
+                // We must close the Fd when we finish.
+                uri = getIntent().getParcelableExtra("direct_install_apk");
+            }
+
+            // A permissive VmPolicy must be set to work around
+            // the limitation on cross-application Uri
+            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        
+            try {
+                actionInstallPackageQ(
+                        uri,
+                        getIntent().getStringArrayExtra("split_apks")
+                );
+            } catch (Exception e) {
+
+                appInstallFinished(
+                        RESULT_CANCELED
+                );
+
+            }
+
+        } else {
+
+            Intent intent =
+                    new Intent(
+                            Intent.ACTION_INSTALL_PACKAGE,
+                            uri
                     );
 
-            if (!hasPermission) {
-                return false;
-            }
+            intent.putExtra(
+                    Intent.EXTRA_INSTALLER_PACKAGE_NAME,
+                    getPackageName()
+            );
 
-            mManager.setSkipForegroundEnabled(
+            intent.putExtra(
+                    Intent.EXTRA_NOT_UNKNOWN_SOURCE,
                     true
             );
 
-            return true;
+            intent.putExtra(
+                    Intent.EXTRA_RETURN_RESULT,
+                    true
+            );
 
-        } else {
+            intent.addFlags(
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+            );
 
-            return false;
-        }
-    }
+            try {
 
-    private interface CheckPermissionCallback {
-        boolean check();
-    }
+                startActivityForResult(
+                        intent,
+                        REQUEST_INSTALL_PACKAGE
+                );
 
-    private boolean ensureSpecialAccessPermission(
-            CheckPermissionCallback checkPermission,
-            int alertRes,
-            String settingsAction) {
+            } catch (Exception e) {
 
-        if (!checkPermission.check()) {
+                setResult(
+                        RESULT_CANCELED
+                );
 
-        AlertDialog dialog = new AlertDialog.Builder(
-                getContext()
-        )
-                .setMessage(alertRes)
-                .setPositiveButton(
-                        android.R.string.ok,
-                        (dialogInterface, which) ->
-                                startActivity(
-                                        new Intent(settingsAction)
-                                )
-                )
-                .setNegativeButton(
-                        android.R.string.cancel,
-                        (dialogInterface, which) ->
-                                dialogInterface.dismiss()
-                )
-                .create();
+                finish();
         
-        SecureActivity.secureDialog(dialog);
-        dialog.show();
+            }
+        }
 
-            return false;
+        // Restore the VmPolicy anyway
+        StrictMode.setVmPolicy(policy);
+    }
 
-        } else {
+    // On Android Q, ACTION_INSTALL_PACKAGE has been deprecated.
+    // We have to switch to using PackageInstaller for the job, which isn't quite
+    // as elegant because now we really need to read the entire apk and write to it
+    // Keep this case only for Q for now.
+    private void actionInstallPackageQ(Uri uri, String[] split_apks) throws IOException {
+        PackageInstaller pi = getPackageManager().getPackageInstaller();
+        PackageInstaller.SessionParams params = new PackageInstaller.SessionParams(
+                PackageInstaller.SessionParams.MODE_FULL_INSTALL);
+        int sessionId = pi.createSession(params);
 
-            return true;
+        // Show the progress dialog first
+        pi.registerSessionCallback(new InstallationProgressListener(this, pi, sessionId));
+
+        PackageInstaller.Session session = pi.openSession(sessionId);
+        doInstallPackageQ(uri, split_apks, session, () -> {
+            // We have finished piping the streams, show the progress as 10%
+            session.setStagingProgress(0.1f);
+
+            // Commit the session
+            Intent intent = new Intent(this, DummyActivity.class);
+            intent.setAction(PACKAGEINSTALLER_CALLBACK);
+            PendingIntent pendingIntent = PendingIntent.getActivity(this, 0,
+                    intent, PendingIntent.FLAG_MUTABLE);
+            session.commit(pendingIntent.getIntentSender());
+        });
+    }
+
+    // The background part of the installation process on Q (reading APKs etc)
+    // that must be executed on another thread
+    // Put them in background to avoid stalling the UI thread
+    private void doInstallPackageQ(Uri baseUri, String[] split_apks, PackageInstaller.Session session, Runnable callback) {
+        ArrayList<Uri> uris = new ArrayList<>();
+        uris.add(baseUri);
+        if (split_apks != null && split_apks.length > 0) {
+            for (String apk : split_apks) {
+                uris.add(Uri.fromFile(new File(apk)));
+            }
+        }
+
+        new Thread(() -> {
+            for (Uri uri : uris) {
+                try (
+                        InputStream is =
+                                getContentResolver()
+                                        .openInputStream(uri)
+                ) {
+                
+                    if (is == null) {
+                
+                        throw new IOException(
+                                "Cannot open APK stream"
+                        );
+                    }
+                
+                
+                    try (
+                        OutputStream os =
+                                session.openWrite(
+                                        UUID.randomUUID().toString(),
+                                        0,
+                                        is.available()
+                                )
+                    ) {
+                
+                        Utility.pipe(is, os);
+                
+                        session.fsync(os);
+                    }
+                
+                } catch (Exception e) {
+                
+                    session.abandon();
+                
+                }
+            }
+
+            runOnUiThread(callback);
+        }).start();
+    }
+
+    private void actionUninstallPackage() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            actionUninstallPackageQ();
+            return;
+        }
+
+        Uri uri = Uri.fromParts("package", getIntent().getStringExtra("package"), null);
+        Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
+        intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+        // Currently, Install & Uninstall share the same logic
+        // after starting the system PackageInstaller
+        // because the only thing to do is to call the callback
+        // with the result code.
+        // If ANY separate logic is added for any of them,
+        // the request code should be separated.
+        try {
+
+            startActivityForResult(
+                    intent,
+                    REQUEST_INSTALL_PACKAGE
+            );
+        
+        
+        } catch (Exception e) {
+        
+        
+            setResult(
+                    RESULT_CANCELED
+            );
+        
+            finish();
         }
     }
 
-    @Override
-    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_PARENT_KEYGUARD_POLICY) {
-            return;
-        }
-        String key = mPendingKeyguardPreferenceKey;
-        boolean value = mPendingKeyguardPreferenceValue;
-        boolean previousValue = mPendingKeyguardPreferencePreviousValue;
-        mPendingKeyguardPreferenceKey = null;
-        if (key == null) {
-            android.util.Log.e("Shelter", "Received parent keyguard result without a pending checkbox request");
-            return;
-        }
-        CheckBoxPreference preference = findPreference(key);
-        if (resultCode == android.app.Activity.RESULT_OK) {
-            if (preference != null) {
-                preference.setChecked(value);
-            }
-            android.util.Log.i("Shelter", "Parent keyguard policy confirmed: key=" + key + ", enabled=" + value);
-        } else {
-            if (preference != null) {
-                preference.setChecked(previousValue);
-            }
-            android.util.Log.e("Shelter", "Parent keyguard policy was not confirmed; restored checkbox: key=" + key
-                    + ", resultCode=" + resultCode);
+    private void actionUninstallPackageQ() {
+
+        try {
+            PackageInstaller pi =
+                    getPackageManager()
+                            .getPackageInstaller();
+            Intent intent =
+                    new Intent(
+                            this,
+                            DummyActivity.class
+                    );
+
+            intent.setAction(
+                    PACKAGEINSTALLER_CALLBACK
+            );
+
+            PendingIntent pendingIntent =
+                    PendingIntent.getActivity(
+                            this,
+                            0,
+                            intent,
+                            PendingIntent.FLAG_MUTABLE
+                    );
+
+            pi.uninstall(
+                    getIntent()
+                            .getStringExtra("package"),
+                    pendingIntent.getIntentSender()
+            );
+
+        } catch (Exception e) {
+
+            appInstallFinished(
+                    RESULT_CANCELED
+            );
+    
         }
     }
 
+    private void appInstallFinished(int resultCode) {
+        // Clear the fd anyway since we have finished installation.
+        // Because we might have been installing an APK opened from
+        // the other profile. We don't know, but just clean it.
+        FileProviderProxy.clearForwardProxy();
+
+        if (!getIntent().hasExtra("callback")) return;
+
+        // Send the result code back to the caller
+        Bundle callbackExtra = getIntent().getBundleExtra("callback");
+        IAppInstallCallback callback = IAppInstallCallback.Stub
+                .asInterface(callbackExtra.getBinder("callback"));
+
+        try {
+            callback.callback(resultCode);
+        } catch (RemoteException e) {
+            // do nothing
+        }
+
+        finish();
+    }
+
+    private void actionUnfreezeAndLaunch() {
+        // Unfreeze and launch an app
+        // (actually this also works if the app is not frozen at all)
+        // For now we only support apps in Work profile,
+        // so we just check if we are profile owner here
+        if (!mIsProfileOwner) {
+            // Forward it to work profile
+            Intent intent = new Intent(UNFREEZE_AND_LAUNCH);
+            Utility.transferIntentToProfile(this, intent);
+            String packageName = getIntent().getStringExtra("packageName");
+            intent.putExtra("packageName", packageName);
+            intent.putExtra("shouldFreeze",
+                    SettingsManager.getInstance().getAutoFreezeServiceEnabled() &&
+                            LocalStorageManager.getInstance()
+                                .stringListContains(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE, packageName));
+            if (getIntent().hasExtra("linkedPackages")) {
+                // Multiple apps should be unfrozen here
+                String[] packages = getIntent().getStringExtra("linkedPackages").split(",");
+                boolean[] packagesShouldFreeze = new boolean[packages.length];
+
+                for (int i = 0; i < packages.length; i++) {
+                    // Apps in linkedPackages may also need to be auto-frozen
+                    // thus, we loop through them and fetch the settings
+                    packagesShouldFreeze[i] = SettingsManager.getInstance().getAutoFreezeServiceEnabled() &&
+                            LocalStorageManager.getInstance()
+                                    .stringListContains(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE, packages[i]);
+                }
+                intent.putExtra("linkedPackages", packages);
+                intent.putExtra("linkedPackagesShouldFreeze", packagesShouldFreeze);
+            }
+            startActivity(intent);
+            finish();
+            return;
+        }
+
+        // If we have multiple linked apps to unfreeze before launching the main one
+        if (getIntent().hasExtra("linkedPackages")) {
+            String[] packages = getIntent().getStringArrayExtra("linkedPackages");
+            boolean[] packagesShouldFreeze = getIntent().getBooleanArrayExtra("linkedPackagesShouldFreeze");
+
+            for (int i = 0; i < packages.length; i++) {
+                // Unfreeze everything
+                mPolicyManager.setApplicationHidden(
+                        new ComponentName(this, ShelterDeviceAdminReceiver.class),
+                        packages[i], false);
+                // Register freeze service
+                if (packagesShouldFreeze[i]) {
+                    registerAppToFreeze(packages[i]);
+                }
+            }
+        }
+
+        // Here is the main package to launch
+        String packageName = getIntent().getStringExtra("packageName");
+
+        // Unfreeze the app first
+        mPolicyManager.setApplicationHidden(
+                new ComponentName(this, ShelterDeviceAdminReceiver.class),
+                packageName, false);
+
+        // Query the start intent
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
+
+        if (launchIntent != null) {
+            if (getIntent().getBooleanExtra("shouldFreeze", false)) {
+                registerAppToFreeze(packageName);
+            }
+            startActivity(launchIntent);
+        } else {
+            // Acknowledge the user that the application cannot be launched
+            Toast.makeText(this, getString(R.string.launch_app_fail, packageName), Toast.LENGTH_SHORT).show();
+        }
+
+        finish();
+    }
+
+    private void registerAppToFreeze(String packageName) {
+        FreezeService.registerAppToFreeze(packageName);
+        startService(new Intent(this, FreezeService.class));
+    }
+
+    private void actionPublicFreezeAll() {
+        // For now we only support freezing apps in work profile
+        // so forward this to DummyActivity in work profile
+        // after loading the full list to freeze
+        if (!mIsProfileOwner) {
+            Intent intent = new Intent(FREEZE_ALL_IN_LIST);
+            Utility.transferIntentToProfile(this, intent);
+            String[] list = LocalStorageManager.getInstance()
+                    .getStringList(LocalStorageManager.PREF_AUTO_FREEZE_LIST_WORK_PROFILE);
+            intent.putExtra("list", list);
+            startActivity(intent);
+            finish();
+        } else {
+            throw new RuntimeException("unimplemented");
+        }
+    }
+
+    private void actionFreezeAllInList() {
+        if (mIsProfileOwner) {
+            String[] list = getIntent().getStringArrayExtra("list");
+            for (String pkg : list) {
+                mPolicyManager.setApplicationHidden(
+                        new ComponentName(this, ShelterDeviceAdminReceiver.class),
+                        pkg, true);
+            }
+            stopService(new Intent(this, FreezeService.class)); // Stop the auto-freeze service
+            Toast.makeText(this, R.string.freeze_all_success, Toast.LENGTH_SHORT).show();
+            finish();
+        } else {
+            finish();
+        }
+    }
+
+    private void actionStartFileShuttle() {
+        // FileShuttleService must access the storage of the Personal Profile.
+        // The Work Profile only hosts the DocumentsProvider and needs neither
+        // all-files access nor overlay permission.
+        if (Utility.isProfileOwner(this)) {
+            doStartFileShuttle();
+            return;
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            // This requires the permission WRITE_EXTERNAL_STORAGE
+            if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+                doStartFileShuttle();
+            } else {
+                requestPermissions(new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, REQUEST_PERMISSION_EXTERNAL_STORAGE);
+            }
+        } else {
+            // The all file access permission should have been granted when enabling File Shuttle
+            // since Android R.
+            if (Utility.checkAllFileAccessPermission() && Utility.checkSystemAlertPermission(this)) {
+                doStartFileShuttle();
+            } else {
+                finish();
+            }
+        }
+    }
+
+    private void doStartFileShuttle() {
+        ((ShelterApplication) getApplication()).bindFileShuttleService(new ServiceConnection() {
+            @Override
+            public void onServiceConnected(ComponentName name, IBinder service) {
+                IFileShuttleService shuttle = IFileShuttleService.Stub.asInterface(service);
+                IFileShuttleServiceCallback callback = IFileShuttleServiceCallback.Stub.asInterface(
+                        getIntent().getBundleExtra("extra").getBinder("callback"));
+                try {
+                    callback.callback(shuttle);
+                } catch (RemoteException e) {
+                    // Do Nothing
+                }
+
+                finish();
+            }
+
+            @Override
+            public void onServiceDisconnected(ComponentName name) {
+                // Do Nothing
+            }
+        });
+    }
+
+    private void actionSynchronizePreference() {
+        String name = getIntent().getStringExtra("name");
+        if (getIntent().hasExtra("boolean")) {
+            LocalStorageManager.getInstance()
+                    .setBoolean(name, getIntent().getBooleanExtra("boolean", false));
+        } else if (getIntent().hasExtra("int")) {
+            LocalStorageManager.getInstance()
+                    .setInt(name, getIntent().getIntExtra("int", Integer.MIN_VALUE));
+        }
+        // TODO: Cases for other types
+        SettingsManager.getInstance().applyAll();
+        if (mIsProfileOwner) {
+            // Refresh profile policies because
+            // settings may have been changed
+            Utility.enforceWorkProfilePolicies(this);
+            Utility.enforceUserRestrictions(this);
+        }
+        finish();
+    }
+
+    /*
+     * ============================================================
+     * PERMANENT HIGH WORK PROFILE PASSWORD SECURITY POLICY
+     * ============================================================
+     *
+     * SECURITY-CRITICAL:
+     *
+     * The previous implementation used PASSWORD_QUALITY_COMPLEX together
+     * with application-defined requirements such as a 65-character minimum,
+     * exact letter/digit/symbol counts, etc. That is intentionally removed.
+     *
+     * Android 12+ provides the platform-defined password-complexity API:
+     * setRequiredPasswordComplexity(PASSWORD_COMPLEXITY_HIGH).
+     *
+     * This means Shelter no longer defines the password format itself. The
+     * Android framework decides what qualifies as HIGH and can update that
+     * definition independently of Shelter. The policy therefore follows the
+     * standard Android security model instead of imposing a custom 65-character
+     * or custom character-class policy.
+     *
+     * The policy is still one-way from Shelter's point of view. Once all
+     * requested settings have been successfully applied and verified, the
+     * permanent latch is set and Shelter has no code path that removes the
+     * policy.
+     */
+    private void actionApplyMaximumWorkProfileSecurity() {
+
+        if (!mIsProfileOwner) {
+            finish();
+            return;
+        }
+
+        final ComponentName admin =
+                new ComponentName(this, ShelterDeviceAdminReceiver.class);
+
+        if (mPolicyManager == null
+                || !mPolicyManager.isProfileOwnerApp(getPackageName())) {
+            finish();
+            return;
+        }
+
+        /*
+         * SECURITY-CRITICAL:
+         *
+         * Idempotence / one-way latch.
+         * Once the complete policy has been successfully applied and
+         * verified, later requests are harmless no-ops.
+         */
+        if (LocalStorageManager.getInstance().getBoolean(
+                LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED)) {
+            finish();
+            return;
+        }
+
+        final int requiredPasswordComplexity =
+                DevicePolicyManager.PASSWORD_COMPLEXITY_HIGH;
+
+        final int maximumFailedPasswordsForWipe = 5;
+        final int passwordHistoryLength = 1;
+        final long maximumTimeToLock = 1L * 90L * 1000L; // 1.5 minute
+        final long passwordExpirationTimeout =
+                30L * 24L * 60L * 60L * 1000L; // 30 days
+
+        try {
+            /*
+             * IMPORTANT:
+             *
+             * Use Android's standard HIGH complexity policy. Do NOT call:
+             *   setPasswordQuality(PASSWORD_QUALITY_COMPLEX)
+             *   setPasswordMinimumLength(...)
+             *   setPasswordMinimumLetters(...)
+             *   setPasswordMinimumNumeric(...)
+             *   setPasswordMinimumSymbols(...)
+             *   setPasswordMinimumUpperCase(...)
+             *   setPasswordMinimumLowerCase(...)
+             *   setPasswordMinimumNonLetter(...)
+             *
+             * setRequiredPasswordComplexity() also replaces/clears the old
+             * obsolete custom password requirements for this policy.
+             */
+            mPolicyManager.setRequiredPasswordComplexity(
+                    requiredPasswordComplexity
+            );
+
+            /*
+             * These policies are independent of password character format
+             * and are intentionally retained.
+             */
+            mPolicyManager.setMaximumFailedPasswordsForWipe(
+                    admin,
+                    maximumFailedPasswordsForWipe
+            );
+
+            mPolicyManager.setPasswordHistoryLength(
+                    admin,
+                    passwordHistoryLength
+            );
+
+            mPolicyManager.setMaximumTimeToLock(
+                    admin,
+                    maximumTimeToLock
+            );
+
+            mPolicyManager.setPasswordExpirationTimeout(
+                    admin,
+                    passwordExpirationTimeout
+            );
+
+            /*
+             * Require a separate Work Profile challenge rather than a
+             * unified challenge with the parent profile.
+             */
+            mPolicyManager.addUserRestriction(
+                    admin,
+                    UserManager.DISALLOW_UNIFIED_PASSWORD
+            );
+
+            boolean accessibilityPolicyApplied =
+                    mPolicyManager.setPermittedAccessibilityServices(
+                            admin,
+                            Collections.singletonList("net.typeblog.shelter")
+                    );
+            
+            if (!accessibilityPolicyApplied) {
+                finish();
+                return;
+            }
+
+        } catch (RuntimeException e) {
+            /*
+             * Do NOT set the permanent latch if any requested operation
+             * failed. A later signed request may retry the configuration.
+             */
+            finish();
+            return;
+        }
+
+        /*
+         * ============================================================
+         * READ-BACK VERIFICATION
+         * ============================================================
+         */
+        try {
+            boolean verified =
+                    mPolicyManager.getRequiredPasswordComplexity()
+                            == requiredPasswordComplexity
+                    && mPolicyManager.getMaximumFailedPasswordsForWipe(admin)
+                            == maximumFailedPasswordsForWipe
+                    && mPolicyManager.getPasswordHistoryLength(admin)
+                            == passwordHistoryLength
+                    && mPolicyManager.getMaximumTimeToLock(admin)
+                            == maximumTimeToLock
+                    && mPolicyManager.getPasswordExpirationTimeout(admin)
+                            == passwordExpirationTimeout;
+
+            Bundle restrictions =
+                    mPolicyManager.getUserRestrictions(admin);
+
+            verified = verified
+                    && restrictions.getBoolean(
+                            UserManager.DISALLOW_UNIFIED_PASSWORD,
+                            false
+                    );
+
+            if (!verified) {
+                finish();
+                return;
+            }
+
+        } catch (RuntimeException e) {
+            finish();
+            return;
+        }
+
+        /*
+         * ============================================================
+         * PERMANENT LATCH
+         * ============================================================
+         */
+        LocalStorageManager.getInstance().setBoolean(
+                LocalStorageManager.PREF_MAXIMUM_WORK_PROFILE_SECURITY_APPLIED,
+                true
+        );
+
+        /*
+         * The policy does not replace an existing weak credential by itself.
+         * If the current Work Profile credential does not satisfy HIGH,
+         * launch Android's standard password-change UI.
+         */
+        try {
+            if (mPolicyManager.isUsingUnifiedPassword(admin)
+                    || !mPolicyManager.isActivePasswordSufficient()) {
+
+                Intent setNewPassword =
+                        new Intent(DevicePolicyManager.ACTION_SET_NEW_PASSWORD);
+                setNewPassword.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(setNewPassword);
+            }
+        } catch (RuntimeException e) {
+            /*
+             * The policy has already been committed and must not be rolled
+             * back merely because the optional password-change UI failed to
+             * launch.
+             */
+        }
+
+        finish();
+    }
+
+    private void actionSetParentKeyguardPolicy() {
+        android.util.Log.i("Shelter", "Received parent keyguard policy request in profile owner instance");
+        if (!mIsProfileOwner) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: receiver is not Profile Owner");
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+            return;
+        }
+        if (!AuthenticationUtility.checkIntent(getIntent())) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid HMAC/signature");
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+            return;
+        }
+        if (!WorkProfileAuthenticationState.isValid()) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: Work Profile authentication lease is not valid");
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+            return;
+        }
+        int flag = getIntent().getIntExtra(EXTRA_KEYGUARD_POLICY_FLAG, 0);
+        boolean enabled = getIntent().getBooleanExtra(EXTRA_KEYGUARD_POLICY_ENABLED, false);
+        int allowed = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT
+                | DevicePolicyManager.KEYGUARD_DISABLE_FACE
+                | DevicePolicyManager.KEYGUARD_DISABLE_IRIS
+                | DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+        if ((flag & allowed) == 0 || (flag & (flag - 1)) != 0) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid policy flag=" + flag);
+            setResult(Activity.RESULT_CANCELED);
+            finish();
+            return;
+        }
+        try {
+            ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
+            DevicePolicyManager parent = mPolicyManager.getParentProfileInstance(admin);
+            if (parent == null) {
+                android.util.Log.e("Shelter", "Rejected parent keyguard request: parent DPM instance is null");
+                setResult(Activity.RESULT_CANCELED);
+                finish();
+                return;
+            }
+            int current = parent.getKeyguardDisabledFeatures(admin);
+            int updated = enabled ? (current | flag) : (current & ~flag);
+            parent.setKeyguardDisabledFeatures(admin, updated);
+            int verified = parent.getKeyguardDisabledFeatures(admin);
+            if ((verified & flag) == (enabled ? flag : 0)) {
+                android.util.Log.i("Shelter", "Applied and verified parent keyguard policy: flag="
+                        + flag + ", enabled=" + enabled);
+                setResult(Activity.RESULT_OK);
+            } else {
+                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: flag="
+                        + flag + ", enabled=" + enabled + ", actualFlags=" + verified);
+                setResult(Activity.RESULT_CANCELED);
+            }
+        } catch (SecurityException | IllegalStateException | NullPointerException e) {
+            android.util.Log.e("Shelter", "Exception applying parent keyguard policy: flag=" + flag
+                    + ", enabled=" + enabled, e);
+            setResult(Activity.RESULT_CANCELED);
+        }
+        finish();
+    }
+
+    private void actionSecurityResponse() {
+        // Deliberately do not force keyguard restrictions here. The four
+        // independently configured parent-profile policies must be preserved.
+        finish();
+    }
 }
