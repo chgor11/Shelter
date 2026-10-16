@@ -54,6 +54,10 @@ public class SettingsFragment extends PreferenceFragmentCompat
     private static final String SETTINGS_WORK_PROFILE_APPS_CONTROL =
             "settings_work_profile_apps_control";
 
+    private static final int REQUEST_PARENT_KEYGUARD_POLICY = 4107;
+    private String mPendingKeyguardPreferenceKey = null;
+    private boolean mPendingKeyguardPreferenceValue = false;
+    private boolean mPendingKeyguardPreferencePreviousValue = false;
 
     private static final int[] AUTO_FREEZE_DELAY_SECONDS =
             new int[]{0, 60, 2 * 60, 5 * 60};
@@ -114,6 +118,7 @@ public class SettingsFragment extends PreferenceFragmentCompat
         addPreferencesFromResource(
                 R.xml.preferences_settings
         );
+        android.util.Log.i("Shelter", "Loaded personal Settings preferences_settings.xml");
 
         /*
          * SECURITY POLICY ADMINISTRATION ENTRY
@@ -333,11 +338,13 @@ public class SettingsFragment extends PreferenceFragmentCompat
         mPrefSkipForeground
                 .setOnPreferenceChangeListener(this);
 
-        // Use the same standard AndroidX Preference listener path as the clipboard toggle.
-        findPreference("settings_disable_parent_fingerprint").setOnPreferenceChangeListener(this);
-        findPreference("settings_disable_parent_face").setOnPreferenceChangeListener(this);
-        findPreference("settings_disable_parent_iris").setOnPreferenceChangeListener(this);
-        findPreference("settings_disable_parent_trust_agents").setOnPreferenceChangeListener(this);
+        // These are immediate controls on the main/personal Settings screen.
+        // Handle the click explicitly so the checkbox does not depend on an
+        // AndroidX change-listener return value or cross-profile Activity result.
+        setupParentKeyguardPreference("settings_disable_parent_fingerprint");
+        setupParentKeyguardPreference("settings_disable_parent_face");
+        setupParentKeyguardPreference("settings_disable_parent_iris");
+        setupParentKeyguardPreference("settings_disable_parent_trust_agents");
 
         // Disable FileShuttle on Q for now
         // Supported on R and beyond
@@ -402,11 +409,80 @@ public class SettingsFragment extends PreferenceFragmentCompat
         return true;
     }
 
+    private void setupParentKeyguardPreference(String key) {
+        CheckBoxPreference checkbox = findPreference(key);
+        if (checkbox == null) {
+            android.util.Log.e("Shelter", "Missing parent keyguard checkbox in preferences_settings.xml: " + key);
+            return;
+        }
+        checkbox.setOnPreferenceChangeListener(null);
+        checkbox.setOnPreferenceClickListener(clicked -> {
+            CheckBoxPreference control = (CheckBoxPreference) clicked;
+            // Preference click listeners run BEFORE CheckBoxPreference toggles
+            // itself. Calculate the requested state as the inverse of its current state.
+            boolean previousValue = control.isChecked();
+            boolean enabled = !previousValue;
+            android.util.Log.i("Shelter", "Parent keyguard checkbox clicked: key="
+                    + key + ", previous=" + previousValue + ", requested=" + enabled);
+
+            if (Utility.isProfileOwner(requireContext())) {
+                android.util.Log.e("Shelter", "Refusing parent keyguard toggle from Work Profile instance: " + key);
+                return true;
+            }
+
+            int policyFlag;
+            switch (key) {
+                case "settings_disable_parent_fingerprint":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+                    break;
+                case "settings_disable_parent_face":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+                    break;
+                case "settings_disable_parent_iris":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+                    break;
+                case "settings_disable_parent_trust_agents":
+                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+                    break;
+                default:
+                    android.util.Log.e("Shelter", "Unknown parent keyguard checkbox: " + key);
+                    return true;
+            }
+
+            Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
+            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, enabled);
+            try {
+                Utility.transferIntentToProfile(requireContext(), request);
+                mPendingKeyguardPreferenceKey = key;
+                mPendingKeyguardPreferenceValue = enabled;
+                mPendingKeyguardPreferencePreviousValue = previousValue;
+                // Change the UI immediately on tap. If the Work Profile explicitly
+                // rejects the request, onActivityResult restores previousValue.
+                control.setChecked(enabled);
+                startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
+                android.util.Log.i("Shelter", "Dispatched parent keyguard policy request: key="
+                        + key + ", enabled=" + enabled);
+            } catch (RuntimeException e) {
+                control.setChecked(previousValue);
+                mPendingKeyguardPreferenceKey = null;
+                android.util.Log.e("Shelter", "Failed to dispatch parent keyguard policy request: key="
+                        + key, e);
+            }
+            // Return true to consume the click; otherwise AndroidX performs a
+            // second automatic toggle and can undo the explicit state above.
+            return true;
+        });
+        android.util.Log.i("Shelter", "Registered parent keyguard click handler: " + key);
+    }
+
     @Override
     public boolean onPreferenceChange(
             Preference preference,
             Object newState) {
 
+        android.util.Log.i("Shelter", "Preference change callback: key="
+                + preference.getKey() + ", newState=" + newState);
         if (preference ==
                 mPrefCrossProfileFileChooser) {
 
@@ -478,47 +554,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
             );
 
             return true;
-
-        } else if ("settings_disable_parent_fingerprint".equals(preference.getKey())
-                || "settings_disable_parent_face".equals(preference.getKey())
-                || "settings_disable_parent_iris".equals(preference.getKey())
-                || "settings_disable_parent_trust_agents".equals(preference.getKey())) {
-
-            if (Utility.isProfileOwner(requireContext())) {
-                return false;
-            }
-            int policyFlag;
-            switch (preference.getKey()) {
-                case "settings_disable_parent_fingerprint":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
-                    break;
-                case "settings_disable_parent_face":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_FACE;
-                    break;
-                case "settings_disable_parent_iris":
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-                    break;
-                default:
-                    policyFlag = android.app.admin.DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
-                    break;
-            }
-            Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
-            request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, (Boolean) newState);
-            try {
-                // Use the same immediate CheckBoxPreference update semantics as the
-                // clipboard setting. Cross-profile Activity results are not a reliable
-                // acknowledgement channel, so do not block the widget on RESULT_OK.
-                Utility.transferIntentToProfile(requireContext(), request);
-                startActivity(request);
-                android.util.Log.i("Shelter", "Dispatched parent keyguard policy request: "
-                        + preference.getKey() + ", enabled=" + newState);
-                return true;
-            } catch (RuntimeException e) {
-                android.util.Log.e("Shelter", "Could not dispatch parent keyguard policy request: "
-                        + preference.getKey(), e);
-                return false;
-            }
 
         } else if (preference ==
                 mPrefWorkToPersonalClipboard) {
@@ -659,6 +694,35 @@ public class SettingsFragment extends PreferenceFragmentCompat
         } else {
 
             return true;
+        }
+    }
+
+    @Override
+    public void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode != REQUEST_PARENT_KEYGUARD_POLICY) {
+            return;
+        }
+        String key = mPendingKeyguardPreferenceKey;
+        boolean value = mPendingKeyguardPreferenceValue;
+        boolean previousValue = mPendingKeyguardPreferencePreviousValue;
+        mPendingKeyguardPreferenceKey = null;
+        if (key == null) {
+            android.util.Log.e("Shelter", "Received parent keyguard result without a pending checkbox request");
+            return;
+        }
+        CheckBoxPreference preference = findPreference(key);
+        if (resultCode == android.app.Activity.RESULT_OK) {
+            if (preference != null) {
+                preference.setChecked(value);
+            }
+            android.util.Log.i("Shelter", "Parent keyguard policy confirmed: key=" + key + ", enabled=" + value);
+        } else {
+            if (preference != null) {
+                preference.setChecked(previousValue);
+            }
+            android.util.Log.e("Shelter", "Parent keyguard policy was not confirmed; restored checkbox: key=" + key
+                    + ", resultCode=" + resultCode);
         }
     }
 
