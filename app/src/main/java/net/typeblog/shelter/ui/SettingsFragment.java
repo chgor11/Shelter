@@ -24,6 +24,7 @@ import androidx.preference.PreferenceFragmentCompat;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.services.IShelterService;
+import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.Utility;
 
@@ -453,15 +454,23 @@ public class SettingsFragment extends PreferenceFragmentCompat
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, enabled);
             try {
-                Utility.transferIntentToProfile(requireContext(), request);
+                // Do NOT call Utility.transferIntentToProfile() here. That helper
+                // resolves an intent through PackageManager and requires a visible
+                // cross-profile forwarding activity. On affected Android builds it
+                // returns no result for this action and throws before launch.
+                // Cross-profile routing is already registered by
+                // Utility.enforceWorkProfilePolicies(); send an implicit intent so
+                // Android's cross-profile IntentForwarder can route it to Work.
+                request.setPackage(requireContext().getPackageName());
+                AuthenticationUtility.signIntent(request);
                 mPendingKeyguardPreferenceKey = key;
                 mPendingKeyguardPreferenceValue = enabled;
                 mPendingKeyguardPreferencePreviousValue = previousValue;
-                // Change the UI immediately on tap. If the Work Profile explicitly
-                // rejects the request, onActivityResult restores previousValue.
+                // Change the UI immediately on tap. If the Work Profile rejects the
+                // request or cannot apply the policy, onActivityResult restores it.
                 control.setChecked(enabled);
                 startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
-                android.util.Log.i("Shelter", "Dispatched parent keyguard policy request: key="
+                android.util.Log.i("Shelter", "Started implicit cross-profile keyguard request: key="
                         + key + ", enabled=" + enabled);
             } catch (RuntimeException e) {
                 control.setChecked(previousValue);
