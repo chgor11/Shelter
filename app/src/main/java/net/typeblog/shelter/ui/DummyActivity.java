@@ -1189,18 +1189,22 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionSetParentKeyguardPolicy() {
+        android.util.Log.i("Shelter", "Received parent keyguard policy request in profile owner instance");
         if (!mIsProfileOwner) {
-            android.util.Log.e("Shelter", "Rejected parent keyguard request: not Profile Owner instance");
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: receiver is not Profile Owner");
+            setResult(Activity.RESULT_CANCELED);
             finish();
             return;
         }
         if (!AuthenticationUtility.checkIntent(getIntent())) {
-            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid/missing HMAC signature");
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid HMAC/signature");
+            setResult(Activity.RESULT_CANCELED);
             finish();
             return;
         }
         if (!WorkProfileAuthenticationState.isValid()) {
-            android.util.Log.e("Shelter", "Rejected parent keyguard request: authentication lease invalid");
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: Work Profile authentication lease is not valid");
+            setResult(Activity.RESULT_CANCELED);
             finish();
             return;
         }
@@ -1211,6 +1215,8 @@ public class DummyActivity extends SecureActivity {
                 | DevicePolicyManager.KEYGUARD_DISABLE_IRIS
                 | DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
         if ((flag & allowed) == 0 || (flag & (flag - 1)) != 0) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid policy flag=" + flag);
+            setResult(Activity.RESULT_CANCELED);
             finish();
             return;
         }
@@ -1218,7 +1224,8 @@ public class DummyActivity extends SecureActivity {
             ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
             DevicePolicyManager parent = mPolicyManager.getParentProfileInstance(admin);
             if (parent == null) {
-                android.util.Log.e("Shelter", "Parent DevicePolicyManager instance is null");
+                android.util.Log.e("Shelter", "Rejected parent keyguard request: parent DPM instance is null");
+                setResult(Activity.RESULT_CANCELED);
                 finish();
                 return;
             }
@@ -1227,14 +1234,18 @@ public class DummyActivity extends SecureActivity {
             parent.setKeyguardDisabledFeatures(admin, updated);
             int verified = parent.getKeyguardDisabledFeatures(admin);
             if ((verified & flag) == (enabled ? flag : 0)) {
-                android.util.Log.i("Shelter", "Applied parent keyguard policy flag=" + flag
-                        + ", enabled=" + enabled);
+                android.util.Log.i("Shelter", "Applied and verified parent keyguard policy: flag="
+                        + flag + ", enabled=" + enabled);
+                setResult(Activity.RESULT_OK);
             } else {
-                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: flag=" + flag
-                        + ", enabled=" + enabled + ", verified=" + verified);
+                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: flag="
+                        + flag + ", enabled=" + enabled + ", actualFlags=" + verified);
+                setResult(Activity.RESULT_CANCELED);
             }
         } catch (SecurityException | IllegalStateException | NullPointerException e) {
-            android.util.Log.e("Shelter", "Failed applying parent keyguard policy flag=" + flag, e);
+            android.util.Log.e("Shelter", "Exception applying parent keyguard policy: flag=" + flag
+                    + ", enabled=" + enabled, e);
+            setResult(Activity.RESULT_CANCELED);
         }
         finish();
     }
