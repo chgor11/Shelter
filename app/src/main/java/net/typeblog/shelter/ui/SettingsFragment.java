@@ -682,7 +682,6 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 preference.setChecked(value);
             }
         } else {
-            android.util.Log.e("Shelter", "Work Profile rejected parent keyguard policy request for " + key);
         }
     }
 
