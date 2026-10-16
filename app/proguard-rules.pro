@@ -20,14 +20,3 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
-
-# ***** Remove standard Android Log calls in release builds. *****
--assumenosideeffects class android.util.Log {
-    public static *** v(...);
-    public static *** d(...);
-    public static *** i(...);
-    public static *** w(...);
-    public static *** e(...);
-    public static *** wtf(...);
-    public static *** println(...);
-}
