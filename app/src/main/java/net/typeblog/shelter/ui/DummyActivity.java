@@ -1207,11 +1207,22 @@ public class DummyActivity extends SecureActivity {
         try {
             ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
             DevicePolicyManager parent = mPolicyManager.getParentProfileInstance(admin);
+            if (parent == null) {
+                setResult(Activity.RESULT_CANCELED);
+                finish();
+                return;
+            }
             int current = parent.getKeyguardDisabledFeatures(admin);
             int updated = enabled ? (current | flag) : (current & ~flag);
             parent.setKeyguardDisabledFeatures(admin, updated);
-        } catch (SecurityException | IllegalStateException ignored) {
-            // Fail closed: do not report success or alter local preference state.
+            int verified = parent.getKeyguardDisabledFeatures(admin);
+            if ((verified & flag) == (enabled ? flag : 0)) {
+                setResult(Activity.RESULT_OK);
+            } else {
+                setResult(Activity.RESULT_CANCELED);
+            }
+        } catch (SecurityException | IllegalStateException | NullPointerException e) {
+            setResult(Activity.RESULT_CANCELED);
         }
         finish();
     }
