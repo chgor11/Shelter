@@ -198,9 +198,17 @@ public class Utility {
                 new IntentFilter(DummyActivity.UNINSTALL_PACKAGE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
+        // The parent-profile UI adds CATEGORY_DEFAULT so PackageManager can
+        // resolve DummyActivity through its manifest intent-filter. The DPM
+        // cross-profile filter must accept that same category or Android will
+        // not forward the request, causing transferIntentToProfile() to report
+        // "Cannot find an intent in other profile".
+        IntentFilter parentKeyguardPolicyFilter =
+                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+        parentKeyguardPolicyFilter.addCategory(Intent.CATEGORY_DEFAULT);
         manager.addCrossProfileIntentFilter(
                 adminComponent,
-                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY),
+                parentKeyguardPolicyFilter,
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         manager.addCrossProfileIntentFilter(
