@@ -24,7 +24,6 @@ import androidx.preference.PreferenceFragmentCompat;
 
 import net.typeblog.shelter.R;
 import net.typeblog.shelter.services.IShelterService;
-import net.typeblog.shelter.util.AuthenticationUtility;
 import net.typeblog.shelter.util.SettingsManager;
 import net.typeblog.shelter.util.Utility;
 
@@ -451,18 +450,17 @@ public class SettingsFragment extends PreferenceFragmentCompat
             }
 
             Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+            // DummyActivity declares CATEGORY_DEFAULT in its manifest filter. Add
+            // the same category to the query intent so PackageManager can resolve
+            // the registered forwarding activity for this action.
+            request.addCategory(Intent.CATEGORY_DEFAULT);
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, enabled);
             try {
-                // Do NOT call Utility.transferIntentToProfile() here. That helper
-                // resolves an intent through PackageManager and requires a visible
-                // cross-profile forwarding activity. On affected Android builds it
-                // returns no result for this action and throws before launch.
-                // Cross-profile routing is already registered by
-                // Utility.enforceWorkProfilePolicies(); send an implicit intent so
-                // Android's cross-profile IntentForwarder can route it to Work.
-                request.setPackage(requireContext().getPackageName());
-                AuthenticationUtility.signIntent(request);
+                // Preserve Shelter's established IPC route: resolve the other-profile
+                // forwarding activity, then HMAC-sign the resolved request. Do not
+                // bypass this helper with a locally targeted or implicit launch.
+                Utility.transferIntentToProfile(requireContext(), request);
                 mPendingKeyguardPreferenceKey = key;
                 mPendingKeyguardPreferenceValue = enabled;
                 mPendingKeyguardPreferencePreviousValue = previousValue;
@@ -470,8 +468,8 @@ public class SettingsFragment extends PreferenceFragmentCompat
                 // request or cannot apply the policy, onActivityResult restores it.
                 control.setChecked(enabled);
                 startActivityForResult(request, REQUEST_PARENT_KEYGUARD_POLICY);
-                android.util.Log.i("Shelter", "Started implicit cross-profile keyguard request: key="
-                        + key + ", enabled=" + enabled);
+                android.util.Log.i("Shelter", "Started signed DummyActivity route for parent keyguard policy: key="
+                        + key + ", enabled=" + enabled + ", component=" + request.getComponent());
             } catch (RuntimeException e) {
                 control.setChecked(previousValue);
                 mPendingKeyguardPreferenceKey = null;
