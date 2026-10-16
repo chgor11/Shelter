@@ -1189,8 +1189,18 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionSetParentKeyguardPolicy() {
-        if (!mIsProfileOwner || !AuthenticationUtility.checkIntent(getIntent())
-                || !WorkProfileAuthenticationState.isValid()) {
+        if (!mIsProfileOwner) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: not Profile Owner instance");
+            finish();
+            return;
+        }
+        if (!AuthenticationUtility.checkIntent(getIntent())) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: invalid/missing HMAC signature");
+            finish();
+            return;
+        }
+        if (!WorkProfileAuthenticationState.isValid()) {
+            android.util.Log.e("Shelter", "Rejected parent keyguard request: authentication lease invalid");
             finish();
             return;
         }
@@ -1208,7 +1218,7 @@ public class DummyActivity extends SecureActivity {
             ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
             DevicePolicyManager parent = mPolicyManager.getParentProfileInstance(admin);
             if (parent == null) {
-                setResult(Activity.RESULT_CANCELED);
+                android.util.Log.e("Shelter", "Parent DevicePolicyManager instance is null");
                 finish();
                 return;
             }
@@ -1217,12 +1227,14 @@ public class DummyActivity extends SecureActivity {
             parent.setKeyguardDisabledFeatures(admin, updated);
             int verified = parent.getKeyguardDisabledFeatures(admin);
             if ((verified & flag) == (enabled ? flag : 0)) {
-                setResult(Activity.RESULT_OK);
+                android.util.Log.i("Shelter", "Applied parent keyguard policy flag=" + flag
+                        + ", enabled=" + enabled);
             } else {
-                setResult(Activity.RESULT_CANCELED);
+                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: flag=" + flag
+                        + ", enabled=" + enabled + ", verified=" + verified);
             }
         } catch (SecurityException | IllegalStateException | NullPointerException e) {
-            setResult(Activity.RESULT_CANCELED);
+            android.util.Log.e("Shelter", "Failed applying parent keyguard policy flag=" + flag, e);
         }
         finish();
     }
