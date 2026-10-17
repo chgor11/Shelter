@@ -95,6 +95,20 @@ public class Utility {
         if (i.isPresent()) {
             intent.setComponent(new ComponentName(i.get().activityInfo.packageName, i.get().activityInfo.name));
         } else {
+            if (DummyActivity.SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())) {
+                StringBuilder candidates = new StringBuilder();
+                for (ResolveInfo result : info) {
+                    if (result.activityInfo != null) {
+                        if (candidates.length() > 0) candidates.append(", ");
+                        candidates.append(result.activityInfo.packageName)
+                                .append("/").append(result.activityInfo.name)
+                                .append(" (uid=").append(result.activityInfo.applicationInfo.uid).append(")");
+                    }
+                }
+                android.util.Log.e("Shelter", "No cross-profile resolver for "
+                        + intent.getAction() + "; categories=" + intent.getCategories()
+                        + "; candidates=[" + candidates + "]");
+            }
             throw new IllegalStateException("Cannot find an intent in other profile");
         }
     }
@@ -198,17 +212,14 @@ public class Utility {
                 new IntentFilter(DummyActivity.UNINSTALL_PACKAGE),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
-        // The parent-profile UI adds CATEGORY_DEFAULT so PackageManager can
-        // resolve DummyActivity through its manifest intent-filter. The DPM
-        // cross-profile filter must accept that same category or Android will
-        // not forward the request, causing transferIntentToProfile() to report
-        // "Cannot find an intent in other profile".
-        IntentFilter parentKeyguardPolicyFilter =
-                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-        parentKeyguardPolicyFilter.addCategory(Intent.CATEGORY_DEFAULT);
+        // Parent Personal Profile -> Work Profile. Keep this filter action-only,
+        // like Shelter's established cross-profile IPC filters. The request is
+        // resolved by Utility.transferIntentToProfile() before launch; adding a
+        // category here is unnecessary and can make the system's cross-profile
+        // forwarding resolver fail to match on some Android 16 builds.
         manager.addCrossProfileIntentFilter(
                 adminComponent,
-                parentKeyguardPolicyFilter,
+                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY),
                 DevicePolicyManager.FLAG_PARENT_CAN_ACCESS_MANAGED);
 
         manager.addCrossProfileIntentFilter(
