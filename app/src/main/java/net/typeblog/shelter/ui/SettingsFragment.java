@@ -450,10 +450,9 @@ public class SettingsFragment extends PreferenceFragmentCompat
             }
 
             Intent request = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-            // DummyActivity declares CATEGORY_DEFAULT in its manifest filter. Add
-            // the same category to the query intent so PackageManager can resolve
-            // the registered forwarding activity for this action.
-            request.addCategory(Intent.CATEGORY_DEFAULT);
+            // Keep the request category-free, matching Shelter's established
+            // action-only cross-profile IPC pattern. DummyActivity's manifest
+            // retains CATEGORY_DEFAULT for normal activity launch resolution.
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_FLAG, policyFlag);
             request.putExtra(DummyActivity.EXTRA_KEYGUARD_POLICY_ENABLED, enabled);
             try {
