@@ -3,12 +3,10 @@ package net.typeblog.shelter.util;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.app.admin.DevicePolicyManager;
-import android.os.Process;
+import android.content.pm.PackageManager;
 
 import net.typeblog.shelter.ui.DummyActivity;
-import net.typeblog.shelter.util.AuthenticationUtility;
 
 public class SettingsManager {
     private static SettingsManager sInstance = null;
@@ -101,30 +99,16 @@ public class SettingsManager {
             throw new IllegalArgumentException("Unknown parent keyguard policy");
         }
 
-        final int policyBit;
-        if ("settings_disable_parent_trust_agents".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
-        } else if ("settings_disable_parent_fingerprint".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
-        } else if ("settings_disable_parent_face".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
-        } else if ("settings_disable_parent_iris".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-        } else {
-            throw new IllegalArgumentException("Unknown parent keyguard policy");
-        }
-
+        int policyBit;
+        if ("settings_disable_parent_trust_agents".equals(key)) policyBit = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+        else if ("settings_disable_parent_fingerprint".equals(key)) policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+        else if ("settings_disable_parent_face".equals(key)) policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+        else if ("settings_disable_parent_iris".equals(key)) policyBit = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+        else throw new IllegalArgumentException("Unknown parent keyguard policy");
         Intent intent = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
-        intent.putExtra("key_name", key);
-        intent.putExtra("value", enabled);
-        intent.putExtra("policy_key", policyBit);
-        intent.putExtra("enabled", enabled);
-        intent.putExtra("target_user", Process.myUserHandle().getIdentifier());
+        intent.putExtra("key_name", key); intent.putExtra("value", enabled); intent.putExtra("policy_key", policyBit);
+        intent.putExtra("enabled", enabled); intent.putExtra("target_user", "parent");
         intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-
-        // Preserve the existing signed cross-profile DummyActivity route.
-        // transferIntentToProfile() adds the ordinary timestamp signature;
-        // the additional HMAC binds all policy-relevant fields to that time.
         Utility.transferIntentToProfile(mContext, intent);
         AuthenticationUtility.signParentKeyguardPolicyIntent(intent);
         mContext.startActivity(intent);
