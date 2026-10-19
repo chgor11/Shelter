@@ -76,9 +76,8 @@ android {
         release {
             minifyEnabled true
             shrinkResources true
-    
-            // اگر keystore در Environment موجود باشد، Release امضا می‌شود.
-            // در غیر این صورت APK به صورت unsigned تولید می‌شود.
+            debuggable false
+
             def keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
     
             if (keystorePath != null && !keystorePath.trim().isEmpty()) {
