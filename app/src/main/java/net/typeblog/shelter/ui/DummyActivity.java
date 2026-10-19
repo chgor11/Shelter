@@ -1044,10 +1044,8 @@ public class DummyActivity extends SecureActivity {
             // rejected policy as applied.
             int actual = parentManager.getKeyguardDisabledFeatures(admin);
             if (((actual & policyBit) != 0) != enabled) {
-                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: " + key);
             }
         } catch (SecurityException | IllegalStateException e) {
-            android.util.Log.e("Shelter", "Unable to apply parent keyguard policy: " + key, e);
         } finally {
             finish();
         }
