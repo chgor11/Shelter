@@ -30,4 +30,17 @@
     public static *** e(...);
     public static *** wtf(...);
     public static *** println(...);
+    public static *** isLoggable(...);
+}
+
+-assumenosideeffects class java.io.PrintStream {
+    public void println(%);
+    public void println(**);
+}
+-assumenosideeffects class android.content.ClipboardManager {
+    public void setPrimaryClip(...);
+}
+
+-assumenosideeffects class android.content.ClipData {
+    public static android.content.ClipData newPlainText(...);
 }
