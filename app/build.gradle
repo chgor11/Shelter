@@ -112,6 +112,12 @@ android {
         aidl true
     }
 
+    androidComponents {
+        beforeVariants(selector().withBuildType("debug")) { variant ->
+            variant.enable.set(false)
+        }
+    }
+
     namespace 'net.typeblog.shelter'
 }
 
