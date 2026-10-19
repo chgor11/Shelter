@@ -1,9 +1,18 @@
 package net.typeblog.shelter.util;
 
 import android.content.Intent;
+import android.app.admin.DevicePolicyManager;
+import android.os.Process;
+import android.os.UserHandle;
+import android.os.UserManager;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 
@@ -52,6 +61,11 @@ public class AuthenticationUtility {
         String key = LocalStorageManager.getInstance().getString(
                 LocalStorageManager.PREF_AUTH_KEY);
         if (key == null) {
+            // A sensitive policy request must never bootstrap the shared key,
+            // because an attacker could choose the key and matching signature.
+            if ("net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY".equals(intent.getAction())) {
+                return false;
+            }
             // If we haven't got a key yet, we just take the key sent by the other side
             // If not, NEVER receive any key because it can be fake.
             // We only trust the first key we receive
@@ -68,6 +82,163 @@ public class AuthenticationUtility {
             long intentTimestamp = intent.getLongExtra("timestamp", 0);
             return timestamp - intentTimestamp < 30 * 1000 &&
                     sign(key, intentTimestamp).equals(intent.getStringExtra("signature"));
+        }
+    }
+
+
+    /**
+     * Adds a second, content-bound HMAC for the four parent keyguard policy
+     * requests. Call this only after signIntent() has populated the normal
+     * timestamp/signature (and, during initial setup, auth_key) fields.
+     *
+     * The content HMAC covers the action, UI key name, requested value,
+     * Android policy bit, enabled state, target user ID and timestamp.
+     */
+    public static void signParentKeyguardPolicyIntent(Intent intent) {
+        String key = LocalStorageManager.getInstance().getString(
+                LocalStorageManager.PREF_AUTH_KEY);
+        if (key == null || intent == null || intent.getAction() == null) {
+            throw new IllegalStateException("Cannot sign parent keyguard policy without an auth key");
+        }
+        long timestamp = intent.getLongExtra("timestamp", 0L);
+        intent.putExtra("policy_payload_signature",
+                sign(key, parentKeyguardPolicyPayload(intent, timestamp)));
+    }
+
+    /**
+     * Verifies the content-bound HMAC and the target user before any policy
+     * operation is attempted. The ordinary timestamp signature is checked
+     * separately by checkIntent().
+     */
+    public static boolean checkParentKeyguardPolicyIntent(Intent intent) {
+        if (intent == null
+                || !"net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY".equals(intent.getAction())
+                || intent.getExtras() == null) {
+            return false;
+        }
+
+        String key = LocalStorageManager.getInstance().getString(
+                LocalStorageManager.PREF_AUTH_KEY);
+        if (key == null) {
+            return false;
+        }
+
+        try {
+            if (!(intent.getExtras().get("key_name") instanceof String)
+                    || !(intent.getExtras().get("value") instanceof Boolean)
+                    || !(intent.getExtras().get("policy_key") instanceof Integer)
+                    || !(intent.getExtras().get("enabled") instanceof Boolean)
+                    || !(intent.getExtras().get("target_user") instanceof Integer)
+                    || !(intent.getExtras().get("timestamp") instanceof Long)
+                    || !(intent.getExtras().get("policy_payload_signature") instanceof String)) {
+                return false;
+            }
+
+            long timestamp = intent.getLongExtra("timestamp", 0L);
+            long now = System.currentTimeMillis();
+            // Reject both stale and future-dated requests.
+            if (timestamp <= 0L || timestamp < now - 30_000L || timestamp > now + 30_000L) {
+                return false;
+            }
+
+            String keyName = intent.getStringExtra("key_name");
+            int policyKey = intent.getIntExtra("policy_key", Integer.MIN_VALUE);
+            boolean value = intent.getBooleanExtra("value", false);
+            boolean enabled = intent.getBooleanExtra("enabled", false);
+            if (value != enabled || !isValidParentKeyguardPolicy(keyName, policyKey)) {
+                return false;
+            }
+
+            String expected = sign(key, parentKeyguardPolicyPayload(intent, timestamp));
+            String supplied = intent.getStringExtra("policy_payload_signature");
+            if (supplied == null || !MessageDigest.isEqual(
+                    expected.getBytes(StandardCharsets.US_ASCII),
+                    supplied.getBytes(StandardCharsets.US_ASCII))) {
+                return false;
+            }
+
+            // The target user is verified against the real profile parent by
+            // the context-aware overload below.
+            return true;
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    /**
+     * Context-aware variant which additionally confirms that target_user is
+     * this managed profile's actual parent user.
+     */
+    public static boolean checkParentKeyguardPolicyIntent(Intent intent, android.content.Context context) {
+        if (!checkParentKeyguardPolicyIntent(intent) || context == null) {
+            return false;
+        }
+        try {
+            UserManager userManager = context.getSystemService(UserManager.class);
+            if (userManager == null) {
+                return false;
+            }
+            UserHandle parent = userManager.getProfileParent(Process.myUserHandle());
+            return parent != null
+                    && intent.getIntExtra("target_user", Integer.MIN_VALUE)
+                    == parent.getIdentifier();
+        } catch (RuntimeException e) {
+            return false;
+        }
+    }
+
+    public static boolean isValidParentKeyguardPolicyRequest(Intent intent) {
+        if (intent == null
+                || !"net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY".equals(intent.getAction())
+                || intent.getExtras() == null) {
+            return false;
+        }
+        String keyName = intent.getStringExtra("key_name");
+        int policyKey = intent.getIntExtra("policy_key", Integer.MIN_VALUE);
+        boolean value = intent.getBooleanExtra("value", false);
+        boolean enabled = intent.getBooleanExtra("enabled", false);
+        return value == enabled && isValidParentKeyguardPolicy(keyName, policyKey);
+    }
+
+    private static boolean isValidParentKeyguardPolicy(String keyName, int policyKey) {
+        return ("settings_disable_parent_trust_agents".equals(keyName)
+                    && policyKey == DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS)
+                || ("settings_disable_parent_fingerprint".equals(keyName)
+                    && policyKey == DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT)
+                || ("settings_disable_parent_face".equals(keyName)
+                    && policyKey == DevicePolicyManager.KEYGUARD_DISABLE_FACE)
+                || ("settings_disable_parent_iris".equals(keyName)
+                    && policyKey == DevicePolicyManager.KEYGUARD_DISABLE_IRIS);
+    }
+
+    private static byte[] parentKeyguardPolicyPayload(Intent intent, long timestamp) {
+        try {
+            ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            DataOutputStream out = new DataOutputStream(bytes);
+            out.writeInt(1); // protocol version
+            out.writeUTF(intent.getAction() == null ? "" : intent.getAction());
+            out.writeUTF(intent.getStringExtra("key_name") == null
+                    ? "" : intent.getStringExtra("key_name"));
+            out.writeBoolean(intent.getBooleanExtra("value", false));
+            out.writeInt(intent.getIntExtra("policy_key", Integer.MIN_VALUE));
+            out.writeBoolean(intent.getBooleanExtra("enabled", false));
+            out.writeInt(intent.getIntExtra("target_user", Integer.MIN_VALUE));
+            out.writeLong(timestamp);
+            out.flush();
+            return bytes.toByteArray();
+        } catch (IOException e) {
+            throw new IllegalStateException("Unable to encode parent keyguard policy payload", e);
+        }
+    }
+
+    private static String sign(String hexKey, byte[] payload) {
+        try {
+            SecretKeySpec keySpec = new SecretKeySpec(hexStringToByteArray(hexKey), "HmacSHA256");
+            Mac mac = Mac.getInstance("HmacSHA256");
+            mac.init(keySpec);
+            return bytesToHex(mac.doFinal(payload));
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new RuntimeException("WTF?");
         }
     }
 
