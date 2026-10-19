@@ -202,6 +202,15 @@ public class DummyActivity extends SecureActivity {
             return;
         }
 
+        // The four parent keyguard toggles require a second HMAC that binds
+        // every policy-relevant field, plus validation of the actual parent
+        // user ID, before the Work Profile is allowed to apply the request.
+        if (SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())
+                && !AuthenticationUtility.checkParentKeyguardPolicyIntent(intent, this)) {
+            finish();
+            return;
+        }
+
         /*
          * SECURITY-CRITICAL:
          * The five-minute lease is authoritative only in the Work Profile
@@ -1015,19 +1024,14 @@ public class DummyActivity extends SecureActivity {
         }
 
         Intent request = getIntent();
-        String key = request.getStringExtra("policy_key");
+        String key = request.getStringExtra("key_name");
+        int policyBit = request.getIntExtra("policy_key", Integer.MIN_VALUE);
+        boolean value = request.getBooleanExtra("value", false);
         boolean enabled = request.getBooleanExtra("enabled", false);
-        int policyBit;
 
-        if ("settings_disable_parent_trust_agents".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
-        } else if ("settings_disable_parent_fingerprint".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
-        } else if ("settings_disable_parent_face".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
-        } else if ("settings_disable_parent_iris".equals(key)) {
-            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
-        } else {
+        // Defense in depth: do not rely solely on the HMAC verifier.
+        if (value != enabled
+                || !AuthenticationUtility.isValidParentKeyguardPolicyRequest(request)) {
             finish();
             return;
         }
