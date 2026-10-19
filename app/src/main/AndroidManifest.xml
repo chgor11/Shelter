@@ -47,7 +47,13 @@
         android:manageSpaceActivity=".ui.ManageSpaceActivity"
         android:theme="@style/AppTheme"
         android:resizeableActivity="false"
-        android:debuggable="false">
+        android:debuggable="false"
+        android:testOnly="false"
+        android:allowClearUserData="false"
+        android:defaultToDeviceProtectedStorage="false"
+        android:directBootAware="false"
+        android:extractNativeLibs="false">
+        <profileable android:shell="false"/>
 
         <!-- The main activity for UI -->
         <activity
