@@ -174,6 +174,19 @@ public class SettingsFragment extends PreferenceFragmentCompat
                                 .getBinder("profile_service")
                 );
 
+        String[] parentPolicyKeys = new String[] {
+                "settings_disable_parent_trust_agents",
+                "settings_disable_parent_fingerprint",
+                "settings_disable_parent_face",
+                "settings_disable_parent_iris"
+        };
+        for (String key : parentPolicyKeys) {
+            CheckBoxPreference pref = findPreference(key);
+            if (pref != null) {
+                pref.setOnPreferenceChangeListener(this);
+            }
+        }
+
         // Set the displayed version
         try {
 
@@ -332,82 +345,9 @@ public class SettingsFragment extends PreferenceFragmentCompat
         mPrefSkipForeground
                 .setOnPreferenceChangeListener(this);
 
-        Preference resetTrustAgents =
-                findPreference(
-                        "settings_reset_parent_trust_agents"
-                );
-
-        if (resetTrustAgents != null) {
-
-            resetTrustAgents.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentTrustAgents(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetFingerprint =
-                findPreference(
-                        "settings_reset_parent_fingerprint"
-                );
-
-        if (resetFingerprint != null) {
-
-            resetFingerprint.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentFingerprint(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetFace =
-                findPreference(
-                        "settings_reset_parent_face"
-                );
-
-        if (resetFace != null) {
-
-            resetFace.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentFace(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
-        Preference resetIris =
-                findPreference(
-                        "settings_reset_parent_iris"
-                );
-
-        if (resetIris != null) {
-
-            resetIris.setOnPreferenceClickListener(
-                    preference -> {
-
-                        Utility.resetParentIris(
-                                requireContext()
-                        );
-
-                        return true;
-                    }
-            );
-        }
-
+        // Parent-profile keyguard restrictions are controlled by the four
+        // independent CheckBoxPreferences in preferences_settings.xml.
+        // Their changes are routed through the signed DummyActivity IPC path.
         // Disable FileShuttle on Q for now
         // Supported on R and beyond
         if (Build.VERSION.SDK_INT == Build.VERSION_CODES.Q) {
@@ -574,6 +514,20 @@ public class SettingsFragment extends PreferenceFragmentCompat
             );
 
             return true;
+
+        } else if (preference.getKey() != null
+                && preference.getKey().startsWith("settings_disable_parent_")) {
+            try {
+                mManager.setParentKeyguardPolicyEnabled(
+                        preference.getKey(),
+                        (boolean) newState
+                );
+                return true;
+            } catch (RuntimeException e) {
+                // Keep the checkbox unchanged when the signed cross-profile
+                // request cannot be routed (for example, no Work Profile).
+                return false;
+            }
 
         } else if (preference ==
                 mPrefAutoFreezeService) {
