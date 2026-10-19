@@ -93,6 +93,7 @@ public class DummyActivity extends SecureActivity {
     public static final String START_FILE_SHUTTLE = "net.typeblog.shelter.action.START_FILE_SHUTTLE";
     public static final String START_FILE_SHUTTLE_2 = "net.typeblog.shelter.action.START_FILE_SHUTTLE_2";
     public static final String SYNCHRONIZE_PREFERENCE = "net.typeblog.shelter.action.SYNCHRONIZE_PREFERENCE";
+    public static final String SET_PARENT_KEYGUARD_POLICY = "net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY";
     public static final String PACKAGEINSTALLER_CALLBACK = "net.typeblog.shelter.action.PACKAGEINSTALLER_CALLBACK";
 
     // SECURITY-CRITICAL:
@@ -137,6 +138,7 @@ public class DummyActivity extends SecureActivity {
                     START_FILE_SHUTTLE,
                     START_FILE_SHUTTLE_2,
                     SYNCHRONIZE_PREFERENCE,
+                    SET_PARENT_KEYGUARD_POLICY,
                     APPLY_MAXIMUM_WORK_PROFILE_SECURITY,
                     INSTALL_PACKAGE,
                     UNINSTALL_PACKAGE,
@@ -235,6 +237,8 @@ public class DummyActivity extends SecureActivity {
             actionStartFileShuttle();
         } else if (SYNCHRONIZE_PREFERENCE.equals(intent.getAction())) {
             actionSynchronizePreference();
+        } else if (SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())) {
+            actionSetParentKeyguardPolicy();
         } else if (SECURITY_RESPONSE.equals(intent.getAction())) {
             actionSecurityResponse();
         } else if (APPLY_MAXIMUM_WORK_PROFILE_SECURITY.equals(intent.getAction())) {
@@ -998,6 +1002,57 @@ public class DummyActivity extends SecureActivity {
      * permanent latch is set and Shelter has no code path that removes the
      * policy.
      */
+    /**
+     * Apply one parent lock-screen restriction from the authenticated Work
+     * Profile owner. Each checkbox changes only its own bit, preserving the
+     * other three policies and any unrelated keyguard restrictions.
+     */
+    private void actionSetParentKeyguardPolicy() {
+        if (!mIsProfileOwner || mPolicyManager == null
+                || !mPolicyManager.isProfileOwnerApp(getPackageName())) {
+            finish();
+            return;
+        }
+
+        Intent request = getIntent();
+        String key = request.getStringExtra("policy_key");
+        boolean enabled = request.getBooleanExtra("enabled", false);
+        int policyBit;
+
+        if ("settings_disable_parent_trust_agents".equals(key)) {
+            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_TRUST_AGENTS;
+        } else if ("settings_disable_parent_fingerprint".equals(key)) {
+            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FINGERPRINT;
+        } else if ("settings_disable_parent_face".equals(key)) {
+            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_FACE;
+        } else if ("settings_disable_parent_iris".equals(key)) {
+            policyBit = DevicePolicyManager.KEYGUARD_DISABLE_IRIS;
+        } else {
+            finish();
+            return;
+        }
+
+        ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
+        try {
+            DevicePolicyManager parentManager =
+                    mPolicyManager.getParentProfileInstance(admin);
+            int current = parentManager.getKeyguardDisabledFeatures(admin);
+            int updated = enabled ? (current | policyBit) : (current & ~policyBit);
+            parentManager.setKeyguardDisabledFeatures(admin, updated);
+
+            // Verify the requested bit after writing; do not silently treat a
+            // rejected policy as applied.
+            int actual = parentManager.getKeyguardDisabledFeatures(admin);
+            if (((actual & policyBit) != 0) != enabled) {
+                android.util.Log.e("Shelter", "Parent keyguard policy verification failed: " + key);
+            }
+        } catch (SecurityException | IllegalStateException e) {
+            android.util.Log.e("Shelter", "Unable to apply parent keyguard policy: " + key, e);
+        } finally {
+            finish();
+        }
+    }
+
     private void actionApplyMaximumWorkProfileSecurity() {
 
         if (!mIsProfileOwner) {
