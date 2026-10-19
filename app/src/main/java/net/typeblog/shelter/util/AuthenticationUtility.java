@@ -73,7 +73,7 @@ public class AuthenticationUtility {
         } else {
             long timestamp = new Date().getTime();
             long intentTimestamp = intent.getLongExtra("timestamp", 0);
-            return timestamp - intentTimestamp < 30 * 1000 &&
+            return timestamp - intentTimestamp < 2 * 1000 &&
                     sign(key, intentTimestamp).equals(intent.getStringExtra("signature"));
         }
     }
@@ -94,7 +94,7 @@ public class AuthenticationUtility {
                     || !(intent.getExtras().get("target_user") instanceof String) || !(intent.getExtras().get("timestamp") instanceof Long)
                     || !(intent.getExtras().get("policy_payload_signature") instanceof String)) return false;
             long ts = intent.getLongExtra("timestamp", 0L), now = System.currentTimeMillis();
-            if (ts <= 0 || ts < now - 30000L || ts > now + 30000L || !"parent".equals(intent.getStringExtra("target_user"))) return false;
+            if (ts <= 0 || ts < now - 2000L || ts > now + 2000L || !"parent".equals(intent.getStringExtra("target_user"))) return false;
             if (!isValidParentKeyguardPolicyRequest(intent)) return false;
             String expected = signPayload(key, policyPayload(intent)), supplied = intent.getStringExtra("policy_payload_signature");
             return supplied != null && MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), supplied.getBytes(StandardCharsets.US_ASCII));
