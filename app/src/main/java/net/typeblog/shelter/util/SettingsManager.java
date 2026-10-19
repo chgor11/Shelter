@@ -85,6 +85,27 @@ public class SettingsManager {
         return mStorage.getBoolean(LocalStorageManager.PREF_BLOCK_CONTACTS_SEARCHING);
     }
 
+    /**
+     * Dispatch an independent parent lock-screen policy change through the
+     * existing signed DummyActivity cross-profile route. The Work Profile
+     * Profile Owner applies the corresponding KEYGUARD_DISABLE_* bit.
+     */
+    public void setParentKeyguardPolicyEnabled(String key, boolean enabled) {
+        if (!("settings_disable_parent_trust_agents".equals(key)
+                || "settings_disable_parent_fingerprint".equals(key)
+                || "settings_disable_parent_face".equals(key)
+                || "settings_disable_parent_iris".equals(key))) {
+            throw new IllegalArgumentException("Unknown parent keyguard policy");
+        }
+
+        Intent intent = new Intent(DummyActivity.SET_PARENT_KEYGUARD_POLICY);
+        intent.putExtra("policy_key", key);
+        intent.putExtra("enabled", enabled);
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Utility.transferIntentToProfile(mContext, intent);
+        mContext.startActivity(intent);
+    }
+
     // Set the enabled state of the auto freeze service
     // This does NOT need to be synchronized nor applied across profile
     public void setAutoFreezeServiceEnabled(boolean enabled) {
