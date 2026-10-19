@@ -202,11 +202,8 @@ public class DummyActivity extends SecureActivity {
             return;
         }
 
-        // The four parent keyguard toggles require a second HMAC that binds
-        // every policy-relevant field, plus validation of the actual parent
-        // user ID, before the Work Profile is allowed to apply the request.
         if (SET_PARENT_KEYGUARD_POLICY.equals(intent.getAction())
-                && !AuthenticationUtility.checkParentKeyguardPolicyIntent(intent, this)) {
+                && !AuthenticationUtility.checkParentKeyguardPolicyIntent(intent)) {
             finish();
             return;
         }
@@ -1028,13 +1025,7 @@ public class DummyActivity extends SecureActivity {
         int policyBit = request.getIntExtra("policy_key", Integer.MIN_VALUE);
         boolean value = request.getBooleanExtra("value", false);
         boolean enabled = request.getBooleanExtra("enabled", false);
-
-        // Defense in depth: do not rely solely on the HMAC verifier.
-        if (value != enabled
-                || !AuthenticationUtility.isValidParentKeyguardPolicyRequest(request)) {
-            finish();
-            return;
-        }
+        if (value != enabled || !AuthenticationUtility.isValidParentKeyguardPolicyRequest(request)) { finish(); return; }
 
         ComponentName admin = new ComponentName(this, ShelterDeviceAdminReceiver.class);
         try {
