@@ -114,7 +114,7 @@ android {
 
     androidComponents {
         beforeVariants(selector().withBuildType("debug")) { variant ->
-            variant.enable.set(false)
+            variant.enable = false
         }
     }
 
