@@ -216,6 +216,19 @@ public class Utility {
                 new IntentFilter(DummyActivity.APPLY_MAXIMUM_WORK_PROFILE_SECURITY),
                 DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
 
+        /*
+         * Parent -> Work Profile request to enable/disable one parent
+         * keyguard feature. This filter is re-created whenever the work
+         * profile policies are enforced, because clearCrossProfileIntentFilters()
+         * above removes previously registered cross-profile filters.
+         * The receiver must still validate the HMAC and authentication lease;
+         * this routing filter is not an authorization mechanism.
+         */
+        manager.addCrossProfileIntentFilter(
+                adminComponent,
+                new IntentFilter(DummyActivity.SET_PARENT_KEYGUARD_POLICY),
+                DevicePolicyManager.FLAG_MANAGED_CAN_ACCESS_PARENT);
+
         // Allow ACTION_SEND and ACTION_SEND_MULTIPLE to cross from managed to parent
         IntentFilter actionSendFilter = new IntentFilter();
         actionSendFilter.addAction(Intent.ACTION_SEND);
