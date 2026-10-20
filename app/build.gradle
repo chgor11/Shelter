@@ -108,6 +108,12 @@ android {
         }
     }
 
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging false
+        }
+    }
+
     namespace 'net.typeblog.shelter'
 }
 
