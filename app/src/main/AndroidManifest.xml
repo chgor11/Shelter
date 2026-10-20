@@ -51,7 +51,6 @@
         android:allowClearUserData="false"
         android:defaultToDeviceProtectedStorage="false"
         android:directBootAware="false"
-        android:extractNativeLibs="false">
         <profileable android:shell="false"/>
 
         <!-- The main activity for UI -->
