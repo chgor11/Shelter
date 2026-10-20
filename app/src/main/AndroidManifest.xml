@@ -50,7 +50,7 @@
         android:testOnly="false"
         android:allowClearUserData="false"
         android:defaultToDeviceProtectedStorage="false"
-        android:directBootAware="false"
+        android:directBootAware="false">
         <profileable android:shell="false"/>
 
         <!-- The main activity for UI -->
