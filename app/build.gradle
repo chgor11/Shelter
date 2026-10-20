@@ -94,8 +94,7 @@ android {
     }
 
     lint {
-        disable 'MissingTranslation',
-                'GoogleAppIndexingWarning'
+        disable 'MissingTranslation'
     }
 
     buildFeatures {
