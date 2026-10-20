@@ -95,9 +95,7 @@ android {
 
     lint {
         disable 'MissingTranslation',
-                'ExtraTranslation',
                 'GoogleAppIndexingWarning',
-                'InvalidFragmentVersionForActivityResult'
     }
 
     buildFeatures {
