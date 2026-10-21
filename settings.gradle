@@ -15,6 +15,7 @@ dependencyResolutionManagement {
     }
 }
 
+rootProject.name = "Shelter"
 include ':app'
 
 include ':setup-wizard-lib'
