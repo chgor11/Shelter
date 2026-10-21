@@ -1,4 +1,4 @@
 [submodule "libs/SetupWizardLibrary"]
 	path = libs/SetupWizardLibrary
-	url = https://github.com/petercxy/shelter.git
+	url = https://github.com/chgor11/SetupWizardLibrary.git
 	branch = main
