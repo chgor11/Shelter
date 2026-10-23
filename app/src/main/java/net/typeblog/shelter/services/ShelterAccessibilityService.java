@@ -171,19 +171,12 @@ public final class ShelterAccessibilityService extends AccessibilityService {
                         return page;
                     }
                 } finally {
-                    if (root != null) {
-                        root.recycle();
                     }
                 }
             }
 
             return SystemPageFingerprints.Page.NONE;
         } finally {
-            for (AccessibilityWindowInfo w : windows) {
-                if (w != null) {
-                    w.recycle();
-                }
-            }
         }
     }
 
