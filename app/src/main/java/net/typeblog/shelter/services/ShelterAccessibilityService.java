@@ -130,47 +130,44 @@ public final class ShelterAccessibilityService extends AccessibilityService {
         List<AccessibilityWindowInfo> candidates = new ArrayList<>();
         Set<Integer> seen = new HashSet<>();
 
-        try {
-            // Exact event window first.
-            for (AccessibilityWindowInfo w : windows) {
-                if (w != null && w.getId() == eventWindowId && seen.add(w.getId())) {
-                    candidates.add(w);
-                    break;
-                }
+        // Exact event window first.
+        for (AccessibilityWindowInfo w : windows) {
+            if (w != null && w.getId() == eventWindowId && seen.add(w.getId())) {
+                candidates.add(w);
+                break;
+            }
+        }
+
+        // Then the active/focused window for transient Samsung window-id
+        // changes. It must still have the same package at root level.
+        for (AccessibilityWindowInfo w : windows) {
+            if (w != null && !seen.contains(w.getId())
+                    && (w.isActive() || w.isFocused())) {
+                candidates.add(w);
+                seen.add(w.getId());
+            }
+        }
+
+        for (AccessibilityWindowInfo w : candidates) {
+            AccessibilityNodeInfo root = null;
+
+            root = w.getRoot();
+            if (root == null) {
+                continue;
             }
 
-            // Then the active/focused window for transient Samsung window-id
-            // changes. It must still have the same package at root level.
-            for (AccessibilityWindowInfo w : windows) {
-                if (w != null && !seen.contains(w.getId())
-                        && (w.isActive() || w.isFocused())) {
-                    candidates.add(w);
-                    seen.add(w.getId());
-                }
+            CharSequence rootPackage = root.getPackageName();
+            String rootPkg = rootPackage == null ? "" : rootPackage.toString();
+
+            if (!pkg.equals(rootPkg)) {
+                continue;
             }
 
-            for (AccessibilityWindowInfo w : candidates) {
-                AccessibilityNodeInfo root = null;
-
-                root = w.getRoot();
-                if (root == null) {
-                    continue;
-                }
-
-                CharSequence rootPackage = root.getPackageName();
-                String rootPkg = rootPackage == null ? "" : rootPackage.toString();
-
-                if (!pkg.equals(rootPkg)) {
-                    continue;
-                }
-
-                SystemPageFingerprints.Page page = SystemPageFingerprints.detect(root, pkg, cls, visibleText);
-                if (page != SystemPageFingerprints.Page.NONE) {
-                    return page;
-                }
-                }
+            SystemPageFingerprints.Page page = SystemPageFingerprints.detect(root, pkg, cls, visibleText);
+            if (page != SystemPageFingerprints.Page.NONE) {
+                return page;
             }
-
+            }
             return SystemPageFingerprints.Page.NONE;
         }
 
