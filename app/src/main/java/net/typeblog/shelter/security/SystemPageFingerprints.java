@@ -1349,7 +1349,8 @@ public final class SystemPageFingerprints {
 
         if (containsAboutPhoneTitleInTree(child)) {
             return true;
-                }
+            }
+		}
 
         return false;
     }
