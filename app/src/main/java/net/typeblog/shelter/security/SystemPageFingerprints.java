@@ -1040,10 +1040,10 @@ public final class SystemPageFingerprints {
 
             if (containsShelterIdentityInTree(child)) {
                 return true;
-                    }
+            }
+        }
 
         return false;
-		}
     }
 
     /**
