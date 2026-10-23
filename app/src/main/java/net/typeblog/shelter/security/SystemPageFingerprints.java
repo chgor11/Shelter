@@ -1007,12 +1007,8 @@ public final class SystemPageFingerprints {
                 continue;
             }
 
-            try {
-                if (containsAnyTitleInTree(child, candidates)) {
-                    return true;
-                }
-            } finally {
-                child.recycle();
+            if (containsAnyTitleInTree(child, candidates)) {
+                return true;
             }
         }
 
@@ -1042,14 +1038,9 @@ public final class SystemPageFingerprints {
                 continue;
             }
 
-            try {
-                if (containsShelterIdentityInTree(child)) {
-                    return true;
-                }
-            } finally {
-                child.recycle();
-            }
-        }
+            if (containsShelterIdentityInTree(child)) {
+                return true;
+                    }
 
         return false;
     }
@@ -1356,14 +1347,9 @@ public final class SystemPageFingerprints {
                 continue;
             }
 
-            try {
-                if (containsAboutPhoneTitleInTree(child)) {
-                    return true;
+        if (containsAboutPhoneTitleInTree(child)) {
+            return true;
                 }
-            } finally {
-                child.recycle();
-            }
-        }
 
         return false;
     }
@@ -1481,11 +1467,7 @@ public final class SystemPageFingerprints {
                 continue;
             }
 
-            try {
-                scanTreeRecursive(child, result);
-            } finally {
-                child.recycle();
-            }
+            scanTreeRecursive(child, result);
         }
     }
 
@@ -1526,11 +1508,7 @@ public final class SystemPageFingerprints {
                 continue;
             }
 
-            try {
-                collectResourceIdsRecursive(child, out);
-            } finally {
-                child.recycle();
-            }
+            collectResourceIdsRecursive(child, out);
         }
     }
 
