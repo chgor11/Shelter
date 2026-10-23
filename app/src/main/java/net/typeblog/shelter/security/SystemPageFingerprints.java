@@ -1043,6 +1043,7 @@ public final class SystemPageFingerprints {
                     }
 
         return false;
+		}
     }
 
     /**
