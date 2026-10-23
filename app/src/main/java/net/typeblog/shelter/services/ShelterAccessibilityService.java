@@ -151,34 +151,28 @@ public final class ShelterAccessibilityService extends AccessibilityService {
 
             for (AccessibilityWindowInfo w : candidates) {
                 AccessibilityNodeInfo root = null;
-                try {
-                    root = w.getRoot();
-                    if (root == null) {
-                        continue;
-                    }
 
-                    CharSequence rootPackage = root.getPackageName();
-                    String rootPkg = rootPackage == null ? "" : rootPackage.toString();
+                root = w.getRoot();
+                if (root == null) {
+                    continue;
+                }
 
-                    if (!pkg.equals(rootPkg)) {
-                        continue;
-                    }
+                CharSequence rootPackage = root.getPackageName();
+                String rootPkg = rootPackage == null ? "" : rootPackage.toString();
 
-                    SystemPageFingerprints.Page page =
-                            SystemPageFingerprints.detect(
-                                    root, pkg, cls, visibleText);
-                    if (page != SystemPageFingerprints.Page.NONE) {
-                        return page;
-                    }
-                } finally {
-                    }
+                if (!pkg.equals(rootPkg)) {
+                    continue;
+                }
+
+                SystemPageFingerprints.Page page = SystemPageFingerprints.detect(root, pkg, cls, visibleText);
+                if (page != SystemPageFingerprints.Page.NONE) {
+                    return page;
+                }
                 }
             }
 
             return SystemPageFingerprints.Page.NONE;
-        } finally {
         }
-    }
 
     private static String safeNodeClass(AccessibilityNodeInfo node) {
         if (node == null || node.getClassName() == null) return "";
