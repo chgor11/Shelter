@@ -7,9 +7,9 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -40,24 +40,8 @@ public class ShelterService extends Service {
     private boolean mIsProfileOwner = false;
     private PackageManager mPackageManager = null;
     private ComponentName mAdminComponent = null;
-    // When we need to start an activity, we need something else to do it for us
-    // as per background limitation of Android 10
-    // We mostly need this for app cloning / installation
-    // (we could probably just invoke DummyActivity directly from the other side,
-    //  but there are cases where DummyActivity isn't needed, e.g. when cloning
-    //  system applications. These cases can be handled without DummyActivity
-    //  and without any visual interference.)
-    // Note that this proxy can only start activity that is accessible to the
-    // main profile and within the application itself.
     private IStartActivityProxy mStartActivityProxy = null;
-    /**
-     * SECURITY-CRITICAL:
-     *
-     * The Work Profile ShelterService Binder may outlive the five-minute
-     * authentication lease held by the Work Profile process. Every sensitive
-     * state-changing Binder operation therefore checks the lease at the point
-     * of execution. The Binder reference itself is not the security boundary.
-     */
+
     private void requireAuthenticationLease() {
         if (mIsProfileOwner
                 && !WorkProfileAuthenticationState.isValid()) {
@@ -74,7 +58,6 @@ public class ShelterService extends Service {
 
         @Override
         public void stopShelterService(boolean kill) {
-            // dirty: just wait for some time and kill this service itself
             new Thread(() -> {
                 try {
                     Thread.sleep(1);
@@ -85,7 +68,6 @@ public class ShelterService extends Service {
                 ((ShelterApplication) getApplication()).unbindShelterService();
 
                 if (kill && !(mIsProfileOwner && FreezeService.hasPendingAppToFreeze())) {
-                    // Just kill the entire process if this signal is received and the process has nothing to do
                     System.exit(0);
                 }
             }).start();
@@ -110,7 +92,6 @@ public class ShelterService extends Service {
                         .map((it) -> it.loadLabel(mPackageManager)
                                 .setHidden(isHidden(it.getPackageName())))
                         .sorted((x, y) -> {
-                            // Sort hidden apps at the last
                             if (x.isHidden() && !y.isHidden()) {
                                 return 1;
                             } else if (!x.isHidden() && y.isHidden()) {
@@ -146,48 +127,33 @@ public class ShelterService extends Service {
         public void installApp(ApplicationInfoWrapper app, IAppInstallCallback callback) throws RemoteException {
             requireAuthenticationLease();
             if (!app.isSystem()) {
-                // Installing a non-system app requires firing up PackageInstaller
-                // Delegate this operation to DummyActivity because
-                // Only it can receive a result
                 Intent intent = new Intent(DummyActivity.INSTALL_PACKAGE);
                 intent.setComponent(new ComponentName(ShelterService.this, DummyActivity.class));
                 intent.putExtra("package", app.getPackageName());
                 intent.putExtra("apk", app.getSourceDir());
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                    intent.putExtra("split_apks", app.getSplitApks());
+                intent.putExtra("split_apks", app.getSplitApks());
 
-                // Send the callback to the DummyActivity
                 Bundle callbackExtra = new Bundle();
                 callbackExtra.putBinder("callback", callback.asBinder());
                 intent.putExtra("callback", callbackExtra);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 AuthenticationUtility.signIntent(intent);
-                if (mStartActivityProxy != null)
-                    try {
 
+                if (mStartActivityProxy != null) {
+                    try {
                         mStartActivityProxy.startActivity(intent);
-                    
-                    
                     } catch (Exception e) {
-                    
-                    
-                        callback.callback(
-                                Activity.RESULT_CANCELED
-                        );
-                    
+                        callback.callback(Activity.RESULT_CANCELED);
                     }
+                }
             } else {
                 if (mIsProfileOwner) {
-                    // We can only enable system apps in our own profile
                     mPolicyManager.enableSystemApp(
                             mAdminComponent,
                             app.getPackageName());
-
-                    // Also set the hidden state to false.
                     mPolicyManager.setApplicationHidden(
                             mAdminComponent,
                             app.getPackageName(), false);
-
                     callback.callback(Activity.RESULT_OK);
                 } else {
                     callback.callback(RESULT_CANNOT_INSTALL_SYSTEM_APP);
@@ -198,63 +164,50 @@ public class ShelterService extends Service {
         @Override
         public void installApk(UriForwardProxy uriForwarder, IAppInstallCallback callback) throws RemoteException {
             requireAuthenticationLease();
-            // Directly install an APK through a given Fd
-            // instead of installing an existing one
             Intent intent = new Intent(DummyActivity.INSTALL_PACKAGE);
             intent.setComponent(new ComponentName(ShelterService.this, DummyActivity.class));
-            // Generate a content Uri pointing to the Fd
-            // DummyActivity is expected to release the Fd after finishing
             Uri uri = FileProviderProxy.setUriForwardProxy(uriForwarder, "apk");
             intent.putExtra("direct_install_apk", uri);
 
-            // Send the callback to the DummyActivity
             Bundle callbackExtra = new Bundle();
             callbackExtra.putBinder("callback", callback.asBinder());
             intent.putExtra("callback", callbackExtra);
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             AuthenticationUtility.signIntent(intent);
-            if (mStartActivityProxy != null)
-                try {
 
+            if (mStartActivityProxy != null) {
+                try {
                     mStartActivityProxy.startActivity(intent);
-                
-                
                 } catch (Exception e) {
-                
-                
-                    callback.callback(
-                            Activity.RESULT_CANCELED
-                    );
-                
+                    callback.callback(Activity.RESULT_CANCELED);
                 }
+            }
         }
 
         @Override
         public void uninstallApp(ApplicationInfoWrapper app, IAppInstallCallback callback) throws RemoteException {
             requireAuthenticationLease();
             if (!app.isSystem()) {
-                // Similarly, fire up DummyActivity to do uninstallation for us
                 Intent intent = new Intent(DummyActivity.UNINSTALL_PACKAGE);
                 intent.setComponent(new ComponentName(ShelterService.this, DummyActivity.class));
                 intent.putExtra("package", app.getPackageName());
 
-                // Send the callback to the DummyActivity
                 Bundle callbackExtra = new Bundle();
                 callbackExtra.putBinder("callback", callback.asBinder());
                 intent.putExtra("callback", callbackExtra);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 AuthenticationUtility.signIntent(intent);
+
                 if (mStartActivityProxy != null) {
                     try {
                         mStartActivityProxy.startActivity(intent);
                     } catch (Exception e) {
                         callback.callback(Activity.RESULT_CANCELED);
                     }
+                }
             } else {
                 if (mIsProfileOwner) {
-                    // This is essentially the same as disabling the system app
-                    // There is no way to reverse the "enableSystemApp" operation here
                     mPolicyManager.setApplicationHidden(
                             mAdminComponent,
                             app.getPackageName(), true);
@@ -330,8 +283,6 @@ public class ShelterService extends Service {
         public List<String> getCrossProfilePackages() throws RemoteException {
             if (!mIsProfileOwner)
                 throw new IllegalStateException("Cannot access cross-profile packages without being profile owner");
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-                throw new IllegalStateException("Cross-profile packages support is only available on Android 11 and later");
             return new ArrayList<>(mPolicyManager.getCrossProfilePackages(mAdminComponent));
         }
 
@@ -340,8 +291,6 @@ public class ShelterService extends Service {
             requireAuthenticationLease();
             if (!mIsProfileOwner)
                 throw new IllegalStateException("Cannot access cross-profile packages without being profile owner");
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R)
-                throw new IllegalStateException("Cross-profile packages support is only available on Android 11 and later");
             mPolicyManager.setCrossProfilePackages(mAdminComponent, new HashSet<>(packages));
         }
     };
@@ -365,10 +314,6 @@ public class ShelterService extends Service {
 
     @Override
     public boolean onUnbind(Intent intent) {
-        // Stop our foreground notification (if it was created at all) when
-        // all clients have disconnected.
-        // This helps to ensure no notification is left when the Shelter activity
-        // is closed.
         stopForeground(STOP_FOREGROUND_REMOVE);
         return false;
     }
@@ -378,10 +323,14 @@ public class ShelterService extends Service {
     }
 
     private void setForeground() {
-        startForeground(NOTIFICATION_ID, Utility.buildNotification(this,
-                getString(R.string.app_name),
-                getString(R.string.service_title),
-                getString(R.string.service_desc),
-                R.drawable.ic_notification_white_24dp));
+        // On Android 14+ (API 34), startForeground() REQUIRES an explicit FGS type.
+        startForeground(
+                NOTIFICATION_ID,
+                Utility.buildNotification(this,
+                        getString(R.string.app_name),
+                        getString(R.string.service_title),
+                        getString(R.string.service_desc),
+                        R.drawable.ic_notification_white_24dp),
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
     }
-}
+        }
