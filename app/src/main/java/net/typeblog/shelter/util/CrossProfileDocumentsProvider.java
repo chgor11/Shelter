@@ -17,14 +17,13 @@ import android.provider.DocumentsProvider;
 import androidx.annotation.Nullable;
 
 import net.typeblog.shelter.R;
+import net.typeblog.shelter.services.FileShuttleMeta;
 import net.typeblog.shelter.services.FileShuttleService;
 import net.typeblog.shelter.services.IFileShuttleService;
 import net.typeblog.shelter.services.IFileShuttleServiceCallback;
 import net.typeblog.shelter.ui.DummyActivity;
 
-import java.io.Serializable;
 import java.util.List;
-import java.util.Map;
 
 // A document provider to show files across the profile boundary
 // in the system's Documents UI.
@@ -138,7 +137,7 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
     public Cursor queryDocument(String documentId, String[] projection) {
         ensureServiceBound();
         final MatrixCursor result = new MatrixCursor(projection == null ? DEFAULT_DOCUMENT_PROJECTION : projection);
-        Map<String, Serializable> fileInfo;
+        FileShuttleMeta fileInfo;
         try {
             fileInfo = mService.loadFileMeta(documentId);
         } catch (RemoteException e) {
@@ -151,7 +150,7 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
     @Override
     public Cursor queryChildDocuments(String parentDocumentId, String[] projection, String sortOrder) {
         ensureServiceBound();
-        List<Map<String, Serializable>> files;
+        List<FileShuttleMeta> files;
         try {
             files = mService.loadFiles(parentDocumentId);
         } catch (RemoteException e) {
@@ -162,7 +161,7 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
         result.setNotificationUri(getContext().getContentResolver(),
                 DocumentsContract.buildDocumentUri(AUTHORITY, parentDocumentId));
 
-        for (Map<String, Serializable> file : files) {
+        for (FileShuttleMeta file : files) {
             includeFile(result, file);
         }
         return result;
@@ -224,10 +223,45 @@ public class CrossProfileDocumentsProvider extends DocumentsProvider {
         }
     }
 
-    private void includeFile(MatrixCursor cursor, Map<String, Serializable> fileInfo) {
+    private void includeFile(MatrixCursor cursor, FileShuttleMeta meta) {
         final MatrixCursor.RowBuilder row = cursor.newRow();
         for (String col : DEFAULT_DOCUMENT_PROJECTION) {
-            row.add(col, fileInfo.get(col));
+            row.add(col, getColumnValue(meta, col));
         }
     }
-}
+
+    /**
+     * Maps a {@link DocumentsContract.Document} column name to the corresponding
+     * field of {@link FileShuttleMeta}.
+     *
+     * <p>This replaces the legacy {@code Map<String, Serializable>} lookup that
+     * was keyed by the same column names, preserving the exact same behavior
+     * without the unchecked conversion and without depending on the deprecated
+     * {@code Parcel.readHashMap(ClassLoader)}.
+     */
+    @Nullable
+    private static Object getColumnValue(@Nullable FileShuttleMeta meta, String column) {
+        if (meta == null) {
+            return null;
+        }
+        if (DocumentsContract.Document.COLUMN_DOCUMENT_ID.equals(column)) {
+            return meta.documentId;
+        }
+        if (DocumentsContract.Document.COLUMN_DISPLAY_NAME.equals(column)) {
+            return meta.displayName;
+        }
+        if (DocumentsContract.Document.COLUMN_SIZE.equals(column)) {
+            return meta.size;
+        }
+        if (DocumentsContract.Document.COLUMN_LAST_MODIFIED.equals(column)) {
+            return meta.lastModified;
+        }
+        if (DocumentsContract.Document.COLUMN_MIME_TYPE.equals(column)) {
+            return meta.mimeType;
+        }
+        if (DocumentsContract.Document.COLUMN_FLAGS.equals(column)) {
+            return meta.flags;
+        }
+        return null;
+    }
+    }
