@@ -1,5 +1,6 @@
 package net.typeblog.shelter.services;
 
+import net.typeblog.shelter.services.FileShuttleMeta;
 import android.graphics.Point;
 import android.os.ParcelFileDescriptor;
 
