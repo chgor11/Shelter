@@ -648,38 +648,6 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionUninstallPackage() {
-            actionUninstallPackageQ();
-        }
-
-        Uri uri = Uri.fromParts("package", getIntent().getStringExtra("package"), null);
-        Intent intent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
-        intent.putExtra(Intent.EXTRA_RETURN_RESULT, true);
-        // Currently, Install & Uninstall share the same logic
-        // after starting the system PackageInstaller
-        // because the only thing to do is to call the callback
-        // with the result code.
-        // If ANY separate logic is added for any of them,
-        // the request code should be separated.
-        try {
-
-            startActivityForResult(
-                    intent,
-                    REQUEST_INSTALL_PACKAGE
-            );
-        
-        
-        } catch (Exception e) {
-        
-        
-            setResult(
-                    RESULT_CANCELED
-            );
-        
-            finish();
-        }
-    }
-
-    private void actionUninstallPackageQ() {
 
         try {
             PackageInstaller pi =
