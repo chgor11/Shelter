@@ -236,8 +236,12 @@ public class Utility {
 
 
         // Block contacts searching optionally
-        SettingsManager.getInstance().getBlockContactsSearchingEnabled()
-        manager.setProfileEnabled(adminComponent);
+        boolean blockContactsSearch =
+                SettingsManager.getInstance().getBlockContactsSearchingEnabled();
+        int contactsPolicy = blockContactsSearch
+                ? DevicePolicyManager.CONTACTS_ACCESS_POLICY_NONE
+                : DevicePolicyManager.CONTACTS_ACCESS_POLICY_ALL;
+        manager.setManagedProfileContactsAccessPolicy(contactsPolicy);
     }
 
     public static void enforceUserRestrictions(Context context) {
