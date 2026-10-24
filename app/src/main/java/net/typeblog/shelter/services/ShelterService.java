@@ -323,7 +323,6 @@ public class ShelterService extends Service {
     }
 
     private void setForeground() {
-        // On Android 14+ (API 34), startForeground() REQUIRES an explicit FGS type.
         startForeground(
                 NOTIFICATION_ID,
                 Utility.buildNotification(this,
@@ -331,6 +330,6 @@ public class ShelterService extends Service {
                         getString(R.string.service_title),
                         getString(R.string.service_desc),
                         R.drawable.ic_notification_white_24dp),
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC);
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SYSTEM_EXEMPTED);
     }
-        }
+}
