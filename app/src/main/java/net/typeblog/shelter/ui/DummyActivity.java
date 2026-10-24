@@ -356,7 +356,6 @@ public class DummyActivity extends SecureActivity {
             @Override
             public void onCreate(@Nullable Bundle savedInstanceState) {
                 super.onCreate(savedInstanceState);
-                setRetainInstance(true);
                 mStarted = savedInstanceState != null
                         && savedInstanceState.getBoolean(STATE_STARTED, false);
             }
