@@ -562,6 +562,7 @@ public class MainActivity extends SecureActivity {
             return true;
         } else {
             return super.onOptionsItemSelected(item);
+            }
         }
     }
     private void onApkSelected(Uri uri) {
