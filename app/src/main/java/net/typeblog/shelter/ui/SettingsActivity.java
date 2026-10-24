@@ -1,27 +1,22 @@
 package net.typeblog.shelter.ui;
 
-import android.app.KeyguardManager;
-import android.content.Context;
-import android.content.Intent;
 import android.os.Build;
 import android.os.Bundle;
 
 import androidx.activity.EdgeToEdge;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import androidx.fragment.app.Fragment;
 
 import net.typeblog.shelter.R;
 
 public class SettingsActivity extends SecureActivity {
 
-    private static final int REQUEST_DEVICE_CREDENTIAL = 1001;
-
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            EdgeToEdge.enable(this);
-        }
+        EdgeToEdge.enable(this);
 
         super.onCreate(savedInstanceState);
 
@@ -29,59 +24,42 @@ public class SettingsActivity extends SecureActivity {
     }
 
     private void authenticateForSettings() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) {
+        BiometricManager biometricManager = BiometricManager.from(this);
+        int authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG
+                | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+
+        if (biometricManager.canAuthenticate(authenticators)
+                != BiometricManager.BIOMETRIC_SUCCESS) {
             finish();
             return;
         }
 
-        KeyguardManager keyguardManager =
-                (KeyguardManager) getSystemService(
-                        Context.KEYGUARD_SERVICE
-                );
+        BiometricPrompt prompt = new BiometricPrompt(
+                this,
+                ContextCompat.getMainExecutor(this),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            BiometricPrompt.AuthenticationResult result) {
+                        showSettings();
+                    }
 
-        if (keyguardManager == null
-                || !keyguardManager.isKeyguardSecure()) {
-            finish();
-            return;
-        }
-
-        Intent intent =
-                keyguardManager.createConfirmDeviceCredentialIntent(
-                        "Authentication required",
-                        "Enter your device credential to open Shelter settings"
-                );
-
-        if (intent == null) {
-            finish();
-            return;
-        }
-
-        startActivityForResult(
-                intent,
-                REQUEST_DEVICE_CREDENTIAL
-        );
-    }
-
-    @Override
-    protected void onActivityResult(
-            int requestCode,
-            int resultCode,
-            @Nullable Intent data) {
-
-        super.onActivityResult(
-                requestCode,
-                resultCode,
-                data
+                    @Override
+                    public void onAuthenticationError(
+                            int errorCode, CharSequence errString) {
+                        finish();
+                    }
+                }
         );
 
-        if (requestCode == REQUEST_DEVICE_CREDENTIAL) {
+        BiometricPrompt.PromptInfo promptInfo =
+                new BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Authentication required")
+                        .setSubtitle("Enter your device credential to open Shelter settings")
+                        .setAllowedAuthenticators(authenticators)
+                        .build();
 
-            if (resultCode == RESULT_OK) {
-                showSettings();
-            } else {
-                finish();
-            }
-        }
+        prompt.authenticate(promptInfo);
     }
 
     private void showSettings() {
@@ -96,14 +74,6 @@ public class SettingsActivity extends SecureActivity {
                     .setDisplayHomeAsUpEnabled(true);
         }
 
-        /*
-         * The SettingsFragment is now placed inside the dedicated
-         * FragmentContainerView instead of relying on a static
-         * <fragment> element in activity_settings.xml.
-         *
-         * Avoid adding it again if FragmentManager has already
-         * restored it after a configuration/process recreation.
-         */
         Fragment existingFragment =
                 getSupportFragmentManager()
                         .findFragmentByTag("settings_fragment");
@@ -122,16 +92,11 @@ public class SettingsActivity extends SecureActivity {
 
     @Override
     public boolean onSupportNavigateUp() {
-
         if (getSupportFragmentManager()
                 .getBackStackEntryCount() > 0) {
-
-            getSupportFragmentManager()
-                    .popBackStack();
-
+            getSupportFragmentManager().popBackStack();
             return true;
         }
-
         finish();
         return true;
     }
