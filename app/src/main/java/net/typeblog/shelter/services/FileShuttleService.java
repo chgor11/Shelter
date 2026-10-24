@@ -1,11 +1,10 @@
 package net.typeblog.shelter.services;
 
 import android.app.Service;
-import android.content.ContentResolver;
 import android.content.Intent;
-import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.Point;
+import android.media.MediaScannerConnection;
 import android.media.ThumbnailUtils;
 import android.net.Uri;
 import android.os.Environment;
@@ -14,7 +13,7 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.ParcelFileDescriptor;
 import android.provider.DocumentsContract;
-import android.provider.MediaStore;
+import android.util.Size;
 import android.webkit.MimeTypeMap;
 
 import androidx.annotation.Nullable;
@@ -25,7 +24,6 @@ import net.typeblog.shelter.util.CrossProfileDocumentsProvider;
 import net.typeblog.shelter.util.Utility;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
@@ -53,8 +51,9 @@ public class FileShuttleService extends Service {
             resetSuicideTask();
             ArrayList<Map<String, Serializable>> ret = new ArrayList<>();
             File f = new File(resolvePath(path));
-            if (f.listFiles() != null) {
-                for (File child : f.listFiles()) {
+            File[] children = f.listFiles();
+            if (children != null) {
+                for (File child : children) {
                     ret.add(loadFileMeta(child.getPath()));
                 }
             }
@@ -133,10 +132,8 @@ public class FileShuttleService extends Service {
                 return null;
             }
             if (mime.startsWith("image/")) {
-                // Image thumbnail
                 return loadImageThumbnail(fullPath, sizeHint);
             } else if (mime.startsWith("video/")) {
-                // Video thumbnail
                 return loadVideoThumbnail(fullPath);
             } else {
                 return null;
@@ -230,42 +227,30 @@ public class FileShuttleService extends Service {
         stopSelf();
     }
 
+    // Modern replacement for the deprecated MediaStore.Images.Thumbnails API.
+    // ContentResolver.loadThumbnail() supports both file:// and content:// URIs
+    // and uses ImageDecoder internally to produce a properly scaled thumbnail.
     private ParcelFileDescriptor loadImageThumbnail(String fullPath, Point sizeHint) {
-        int id = Utility.getMediaStoreId(FileShuttleService.this, fullPath);
-        if (id == -1) {
-            // Fallback to directly loading thumbnail from file
+        try {
+            Bitmap bmp = getContentResolver().loadThumbnail(
+                    Uri.fromFile(new File(fullPath)),
+                    new Size(sizeHint.x, sizeHint.y),
+                    null);
+            return bitmapToFd(bmp);
+        } catch (IOException | SecurityException e) {
+            // If the modern thumbnail pipeline fails for any reason, fall back
+            // to decoding the file directly (still uses BitmapFactory).
             return loadBitmapThumbnail(fullPath, sizeHint);
-        }
-        Cursor result = MediaStore.Images.Thumbnails.queryMiniThumbnail(
-                getContentResolver(), id, MediaStore.Images.Thumbnails.MINI_KIND, null);
-        if (result.getCount() == 0) {
-            // If no thumbnail is found, we try to request one first
-            MediaStore.Images.Thumbnails.getThumbnail(
-                    getContentResolver(), id, MediaStore.Images.Thumbnails.MINI_KIND, null);
-            result = MediaStore.Images.Thumbnails.queryMiniThumbnail(
-                    getContentResolver(), id, MediaStore.Images.Thumbnails.MINI_KIND, null);
-        }
-        if (result.getCount() == 0) {
-            // Fallback to directly loading thumbnail from file
-            return loadBitmapThumbnail(fullPath, sizeHint);
-        } else {
-            result.moveToFirst();
-            try {
-                int index = result.getColumnIndex(MediaStore.Images.Thumbnails.DATA);
-                return getContentResolver().openFileDescriptor(
-                        Uri.fromFile(new File(result.getString(index))), "r");
-            } catch (FileNotFoundException e) {
-                return null;
-            }
         }
     }
 
+    // Modern replacement for ThumbnailUtils.createVideoThumbnail(String, int)
+    // and MediaStore.Video.Thumbnails.MINI_KIND (both deprecated in API 29).
     private ParcelFileDescriptor loadVideoThumbnail(String fullPath) {
-        // The MediaStore interface for video thumbnails just do not work at all
-        // It can't even retrieve video IDs from the database
-        // Anyway, use this as a temporary fix.
-        // TODO: Figure out how to use the MediaStore interface with videos
-        Bitmap bmp = ThumbnailUtils.createVideoThumbnail(fullPath, MediaStore.Video.Thumbnails.MINI_KIND);
+        Bitmap bmp = ThumbnailUtils.createVideoThumbnail(
+                new File(fullPath),
+                new Size(512, 384),  // equivalent of the old MINI_KIND
+                null);
         return bitmapToFd(bmp);
     }
 
@@ -281,6 +266,9 @@ public class FileShuttleService extends Service {
     }
 
     private ParcelFileDescriptor bitmapToFd(Bitmap bmp) {
+        if (bmp == null) {
+            return null;
+        }
         ParcelFileDescriptor[] pair;
         try {
             // Use a pipe as a virtual in-memory ParcelFileDescriptor
@@ -288,7 +276,6 @@ public class FileShuttleService extends Service {
         } catch (IOException e) {
             return null;
         }
-
 
         // Send the bitmap into the pipe in another thread, so that we can return the
         // reading fd to the Documents UI before we finish sending the Bitmap.
@@ -305,13 +292,15 @@ public class FileShuttleService extends Service {
         return pair[0];
     }
 
+    // Modern replacement for Intent.ACTION_MEDIA_SCANNER_SCAN_FILE (deprecated in API 29).
+    // MediaScannerConnection.scanFile() is the supported, direct replacement.
     private void notifyMediaScannerIfNecessary(File f, String mimeType) {
-        // Notify the media scanner to scan the file as needed
-        // This has to be done AFTER file creation
         if (mimeType != null && (mimeType.startsWith("image/") || mimeType.startsWith("video/"))) {
-            Intent intent = new Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE);
-            intent.setData(Uri.fromFile(f));
-            sendBroadcast(intent);
+            MediaScannerConnection.scanFile(
+                    this,
+                    new String[]{f.getAbsolutePath()},
+                    new String[]{mimeType},
+                    null);
         }
     }
-}
+    }
