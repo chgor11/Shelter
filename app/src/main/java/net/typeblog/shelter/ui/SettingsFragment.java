@@ -168,9 +168,9 @@ public class SettingsFragment extends PreferenceFragmentCompat
 
         mServiceWork =
                 IShelterService.Stub.asInterface(
-                        ((Bundle) getActivity()
+                        getActivity()
                                 .getIntent()
-                                .getParcelableExtra("extras"))
+                                .getParcelableExtra("extras", Bundle.class)
                                 .getBinder("profile_service")
                 );
 
