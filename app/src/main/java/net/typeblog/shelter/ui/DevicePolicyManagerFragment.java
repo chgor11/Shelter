@@ -1,8 +1,8 @@
 package net.typeblog.shelter.ui;
 
-import android.app.KeyguardManager;
-import android.content.Context;
-import android.content.Intent;
+import androidx.biometric.BiometricManager;
+import androidx.biometric.BiometricPrompt;
+import androidx.core.content.ContextCompat;
 import android.os.Bundle;
 import android.view.View;
 
@@ -430,7 +430,6 @@ public class DevicePolicyManagerFragment
      * ============================================================
      */
 
-        private void requestAuthentication() {
         
             /*
              * SECURITY POLICY AUTHENTICATION
@@ -448,7 +447,7 @@ public class DevicePolicyManagerFragment
              *     - Pattern
              *     - Password
              *
-             * DO NOT replace this flow with BiometricPrompt.
+             * DO NOT replace this flow with Biometric.
              *
              * In particular, do NOT use:
              *
@@ -466,137 +465,56 @@ public class DevicePolicyManagerFragment
              * This is intentionally the same authentication mechanism
              * used when opening Shelter Settings.
              */
-        
-            KeyguardManager keyguardManager =
-                    (KeyguardManager)
-                            requireContext()
-                                    .getSystemService(
-                                            Context.KEYGUARD_SERVICE
-                                    );
-        
-            /*
-             * The MAIN / PERSONAL profile must have a secure
-             * device credential configured.
-             */
-            if (keyguardManager == null
-                    || !keyguardManager.isKeyguardSecure()) {
-        
-                /*
-                 * Never leave an authenticated transaction pending
-                 * when credential authentication is unavailable.
-                 */
-                mChangeManager.clearAuthenticationSession();
-        
-                new AlertDialog.Builder(requireContext())
-                        .setTitle("Authentication Required")
-                        .setMessage(
-                                "A device PIN, pattern, or password must be configured before security changes can be applied."
-                        )
-                        .setPositiveButton(
-                                android.R.string.ok,
-                                null
-                        )
-                        .show();
-        
-                return;
-            }
-        
-            /*
-             * Request Android's DEVICE CREDENTIAL confirmation UI.
-             *
-             * This is deliberately NOT BiometricPrompt.
-             *
-             * The intent is created from the KeyguardManager associated
-             * with this Activity's Context, therefore the authentication
-             * is for the current/main profile rather than the Work Profile.
-             */
-            Intent intent =
-                    keyguardManager.createConfirmDeviceCredentialIntent(
-                            "Authentication required",
-                            "Enter your device credential to apply security changes"
-                    );
-        
-            /*
-             * Android may be unable to create the credential-confirmation
-             * activity. In that case the pending transaction must remain
-             * unauthorized.
-             */
-            if (intent == null) {
-        
-                mChangeManager.clearAuthenticationSession();
-        
-                new AlertDialog.Builder(requireContext())
-                        .setTitle("Authentication Unavailable")
-                        .setMessage(
-                                "Device credential authentication is currently unavailable."
-                        )
-                        .setPositiveButton(
-                                android.R.string.ok,
-                                null
-                        )
-                        .show();
-        
-                return;
-            }
-        
-            /*
-             * IMPORTANT:
-             *
-             * Do not authorize anything here.
-             *
-             * Authorization occurs only in onActivityResult() after
-             * Android reports RESULT_OK for REQUEST_POLICY_AUTH.
-             */
-            startActivityForResult(
-                    intent,
-                    REQUEST_POLICY_AUTH
-            );
+
+    private void requestAuthentication() {
+        BiometricManager biometricManager = BiometricManager.from(requireContext());
+        if (biometricManager.canAuthenticate(
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                != BiometricManager.BIOMETRIC_SUCCESS) {
+            mChangeManager.clearAuthenticationSession();
+
+            new AlertDialog.Builder(requireContext())
+                    .setTitle("Authentication Required")
+                    .setMessage(
+                            "A device PIN, pattern, or password must be configured "
+                                    + "before security changes can be applied."
+                    )
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+            return;
         }
 
-    @Override
-    public void onActivityResult(
-            int requestCode,
-            int resultCode,
-            @Nullable Intent data) {
+        BiometricPrompt prompt = new BiometricPrompt(
+                this,
+                ContextCompat.getMainExecutor(requireContext()),
+                new BiometricPrompt.AuthenticationCallback() {
+                    @Override
+                    public void onAuthenticationSucceeded(
+                            BiometricPrompt.AuthenticationResult result) {
+                        mChangeManager.authorizeCurrentTransaction();
+                        mChangeManager.applyAuthenticatedChanges();
+                    }
 
-        super.onActivityResult(
-                requestCode,
-                resultCode,
-                data
+                    @Override
+                    public void onAuthenticationError(
+                            int errorCode, CharSequence errString) {
+                        mChangeManager.clearAuthenticationSession();
+                    }
+                }
         );
 
-        if (requestCode ==
-                REQUEST_POLICY_AUTH) {
+        BiometricPrompt.PromptInfo promptInfo =
+                new BiometricPrompt.PromptInfo.Builder()
+                        .setTitle("Authentication required")
+                        .setSubtitle(
+                                "Enter your device credential to apply security changes"
+                        )
+                        .setAllowedAuthenticators(
+                                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                        )
+                        .build();
 
-            if (resultCode ==
-                    android.app.Activity.RESULT_OK) {
-
-                /*
-                 * Authentication is valid only
-                 * for this current transaction.
-                 */
-                mChangeManager
-                        .authorizeCurrentTransaction();
-
-                /*
-                 * This is the ONLY point where the
-                 * pending security operations are allowed
-                 * to execute.
-                 */
-                mChangeManager
-                        .applyAuthenticatedChanges();
-
-            } else {
-
-                /*
-                 * Authentication failed/cancelled.
-                 *
-                 * No pending operation is executed.
-                 */
-                mChangeManager
-                        .clearAuthenticationSession();
-            }
-        }
+        prompt.authenticate(promptInfo);
     }
 
     /*
