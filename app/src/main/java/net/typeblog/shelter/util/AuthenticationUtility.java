@@ -78,27 +78,26 @@ public class AuthenticationUtility {
         }
     }
 
-    public static void signParentKeyguardPolicyIntent(Intent intent) {
-        String key = LocalStorageManager.getInstance().getString(LocalStorageManager.PREF_AUTH_KEY);
-        if (key == null || intent == null || intent.getAction() == null) throw new IllegalStateException("Missing auth key or intent");
-        intent.putExtra("policy_payload_signature", signPayload(key, policyPayload(intent)));
-    }
-
     public static boolean checkParentKeyguardPolicyIntent(Intent intent) {
-        if (intent == null || !"net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY".equals(intent.getAction()) || intent.getExtras() == null) return false;
+        Bundle extras = getValidatedExtras(intent);
+        if (extras == null) return false;
+
         String key = LocalStorageManager.getInstance().getString(LocalStorageManager.PREF_AUTH_KEY);
         if (key == null) return false;
+
         try {
-            if (!(intent.getExtras().get("key_name") instanceof String) || !(intent.getExtras().get("value") instanceof Boolean)
-                    || !(intent.getExtras().get("policy_key") instanceof Integer) || !(intent.getExtras().get("enabled") instanceof Boolean)
-                    || !(intent.getExtras().get("target_user") instanceof String) || !(intent.getExtras().get("timestamp") instanceof Long)
-                    || !(intent.getExtras().get("policy_payload_signature") instanceof String)) return false;
-            long ts = intent.getLongExtra("timestamp", 0L), now = System.currentTimeMillis();
-            if (ts <= 0 || ts < now - 2000L || ts > now + 2000L || !"parent".equals(intent.getStringExtra("target_user"))) return false;
+            long ts = extras.getLong("timestamp", 0L);
+            long now = System.currentTimeMillis();
+            if (ts <= 0 || ts < now - 2000L || ts > now + 2000L) return false;
+            if (!"parent".equals(extras.getString("target_user"))) return false;
             if (!isValidParentKeyguardPolicyRequest(intent)) return false;
-            String expected = signPayload(key, policyPayload(intent)), supplied = intent.getStringExtra("policy_payload_signature");
+
+            String expected = signPayload(key, policyPayload(intent));
+            String supplied = extras.getString("policy_payload_signature");
             return supplied != null && MessageDigest.isEqual(expected.getBytes(StandardCharsets.US_ASCII), supplied.getBytes(StandardCharsets.US_ASCII));
-        } catch (RuntimeException e) { return false; }
+        } catch (RuntimeException e) {
+            return false;
+        }
     }
 
     public static boolean isValidParentKeyguardPolicyRequest(Intent intent) {
@@ -177,4 +176,22 @@ public class AuthenticationUtility {
         buffer.putLong(x);
         return buffer.array();
     }
+
+    @Nullable
+    private static Bundle getValidatedExtras(@Nullable Intent intent) {
+        if (intent == null) return null;
+        if (!"net.typeblog.shelter.action.SET_PARENT_KEYGUARD_POLICY".equals(intent.getAction())) return null;
+        Bundle extras = intent.getExtras();
+        if (extras == null) return null;
+        if (extras.getString("key_name") == null) return null;
+        if (extras.getString("target_user") == null) return null;
+        if (extras.getString("policy_payload_signature") == null) return null;
+        if (extras.getSerializable("value", Boolean.class) == null) return null;
+        if (extras.getSerializable("enabled", Boolean.class) == null) return null;
+        if (extras.getSerializable("policy_key", Integer.class) == null) return null;
+        if (extras.getSerializable("timestamp", Long.class) == null) return null;
+
+        return extras;
+    }
+
 }
