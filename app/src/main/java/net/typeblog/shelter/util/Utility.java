@@ -236,7 +236,7 @@ public class Utility {
 
 
         // Block contacts searching optionally
-        SettingsManager.getInstance().getBlockContactsSearchingEnabled()
+        SettingsManager.getInstance().getBlockContactsSearchingEnabled();
         manager.setProfileEnabled(adminComponent);
     }
 
