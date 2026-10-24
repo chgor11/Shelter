@@ -17,7 +17,9 @@ public class ApplicationInfoWrapper implements Parcelable {
         @Override
         public ApplicationInfoWrapper createFromParcel(Parcel source) {
             ApplicationInfoWrapper info = new ApplicationInfoWrapper();
-            info.mInfo = source.readParcelable(ApplicationInfo.class.getClassLoader());
+            info.mInfo = source.readParcelable(
+                    ApplicationInfo.class.getClassLoader(),
+                    ApplicationInfo.class);
             info.mLabel = source.readString();
             info.mIsHidden = source.readByte() != 0;
             return info;
@@ -88,6 +90,6 @@ public class ApplicationInfoWrapper implements Parcelable {
 
     @Override
     public int describeContents() {
-        return mInfo.packageName.hashCode();
+        return 0;
     }
 }
