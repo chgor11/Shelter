@@ -7,7 +7,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.drawable.Drawable;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -24,7 +23,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.view.ActionMode;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
@@ -65,7 +63,6 @@ public class AppListFragment extends BaseFragment {
     private ApplicationInfoWrapper mSelectedApp = null;
 
     // Cache of allowed Cross-profile widget providers
-    // Only useful if this fragment manages the work profile
     private Set<String> mCrossProfileWidgetProviders = new HashSet<>();
 
     // Packages allowed to interact across profiles
@@ -80,7 +77,6 @@ public class AppListFragment extends BaseFragment {
     private ActionMode mActionMode = null;
 
     // Receiver for Refresh events
-    // used for app changes
     private BroadcastReceiver mRefreshReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
@@ -102,7 +98,6 @@ public class AppListFragment extends BaseFragment {
         public void onReceive(Context context, Intent intent) {
             String query = intent.getStringExtra("text");
             if ("".equals(query)) {
-                // Consider empty query as null
                 query = null;
             }
             mAdapter.setSearchQuery(query);
@@ -130,14 +125,19 @@ public class AppListFragment extends BaseFragment {
     @Override
     public void onResume() {
         super.onResume();
-        LocalBroadcastManager.getInstance(getContext())
-                .registerReceiver(mRefreshReceiver, new IntentFilter(BROADCAST_REFRESH));
-        LocalBroadcastManager.getInstance(getContext())
-                .registerReceiver(mContextMenuClosedReceiver,
-                        new IntentFilter(MainActivity.BROADCAST_CONTEXT_MENU_CLOSED));
-        LocalBroadcastManager.getInstance(getContext())
-                .registerReceiver(mSearchReceiver,
-                        new IntentFilter(MainActivity.BROADCAST_SEARCH_FILTER_CHANGED));
+        Context context = getContext();
+        context.registerReceiver(
+                mRefreshReceiver,
+                new IntentFilter(BROADCAST_REFRESH),
+                Context.RECEIVER_NOT_EXPORTED);
+        context.registerReceiver(
+                mContextMenuClosedReceiver,
+                new IntentFilter(MainActivity.BROADCAST_CONTEXT_MENU_CLOSED),
+                Context.RECEIVER_NOT_EXPORTED);
+        context.registerReceiver(
+                mSearchReceiver,
+                new IntentFilter(MainActivity.BROADCAST_SEARCH_FILTER_CHANGED),
+                Context.RECEIVER_NOT_EXPORTED);
         refresh();
     }
 
@@ -145,12 +145,10 @@ public class AppListFragment extends BaseFragment {
     public void onPause() {
         super.onPause();
         mSelectedApp = null;
-        LocalBroadcastManager.getInstance(getContext())
-                .unregisterReceiver(mRefreshReceiver);
-        LocalBroadcastManager.getInstance(getContext())
-                .unregisterReceiver(mContextMenuClosedReceiver);
-        LocalBroadcastManager.getInstance(getContext())
-                .unregisterReceiver(mSearchReceiver);
+        Context context = getContext();
+        context.unregisterReceiver(mRefreshReceiver);
+        context.unregisterReceiver(mContextMenuClosedReceiver);
+        context.unregisterReceiver(mSearchReceiver);
     }
 
     @Nullable
@@ -158,7 +156,6 @@ public class AppListFragment extends BaseFragment {
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_list, container, false);
 
-        // Save the views
         mList = view.findViewById(R.id.fragment_list_recycler_view);
         mSwipeRefresh = view.findViewById(R.id.fragment_swipe_refresh);
         mAdapter = new AppListAdapter(mService, mDefaultIcon);
@@ -167,8 +164,6 @@ public class AppListFragment extends BaseFragment {
             mList.showContextMenuForChild(v);
         });
         if (mIsRemote) {
-            // Allow multi-select actions if this is in the work profile
-            // to allow things like multi-app unfreeze shortcuts
             mAdapter.allowMultiSelect();
             mAdapter.setActionModeHandler(this::createMultiSelectActionMode);
             mAdapter.setActionModeCancelHandler(() -> {
@@ -192,7 +187,7 @@ public class AppListFragment extends BaseFragment {
         if (mRefreshing) return;
         if (mAdapter.isMultiSelectMode()) {
             mSwipeRefresh.setRefreshing(false);
-            return; // Disallow refreshing when we are multi-selecting
+            return;
         }
         mRefreshing = true;
         mSwipeRefresh.setRefreshing(true);
@@ -205,12 +200,9 @@ public class AppListFragment extends BaseFragment {
                         mCrossProfileWidgetProviders.clear();
                         mCrossProfilePackages.clear();
 
-                        // Update the cross-profile packages / widget providers list
                         try {
                             mCrossProfileWidgetProviders.addAll(mService.getCrossProfileWidgetProviders());
-
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R)
-                                mCrossProfilePackages.addAll(mService.getCrossProfilePackages());
+                            mCrossProfilePackages.addAll(mService.getCrossProfilePackages());
                         } catch (RemoteException ignored) {
 
                         }
@@ -251,7 +243,6 @@ public class AppListFragment extends BaseFragment {
             public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
                 List<ApplicationInfoWrapper> list = mAdapter.getSelectedItems();
                 if (list == null) {
-                    // We can't perform any action on nothing
                     return false;
                 }
 
@@ -278,7 +269,6 @@ public class AppListFragment extends BaseFragment {
         if (mIsRemote) {
             if (!mSelectedApp.isSystem())
                 menu.add(Menu.NONE, MENU_ITEM_CLONE, Menu.NONE, R.string.clone_to_main_profile);
-            // Freezing / Unfreezing is only available in profiles that we can control
             if (mSelectedApp.isHidden()) {
                 menu.add(Menu.NONE, MENU_ITEM_UNFREEZE, Menu.NONE, R.string.unfreeze_app);
                 menu.add(Menu.NONE, MENU_ITEM_LAUNCH, Menu.NONE, R.string.unfreeze_and_launch);
@@ -286,26 +276,20 @@ public class AppListFragment extends BaseFragment {
                 menu.add(Menu.NONE, MENU_ITEM_FREEZE, Menu.NONE, R.string.freeze_app);
                 menu.add(Menu.NONE, MENU_ITEM_LAUNCH, Menu.NONE, R.string.launch);
             }
-            // Cross-profile widget / packages settings is also limited to work profile
-            MenuItem crossProfileWdiegt =
+            MenuItem crossProfileWidget =
                     menu.add(Menu.NONE, MENU_ITEM_ALLOW_CROSS_PROFILE_WIDGET, Menu.NONE,
                             R.string.allow_cross_profile_widgets);
-            crossProfileWdiegt.setCheckable(true);
-            crossProfileWdiegt.setChecked(
+            crossProfileWidget.setCheckable(true);
+            crossProfileWidget.setChecked(
                     mCrossProfileWidgetProviders.contains(mSelectedApp.getPackageName()));
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                MenuItem crossProfileInteraction =
-                        menu.add(Menu.NONE, MENU_ITEM_ALLOW_CROSS_PROFILE_INTERACTION, Menu.NONE,
-                                R.string.allow_cross_profile_interaction);
-                crossProfileInteraction.setCheckable(true);
-                crossProfileInteraction.setChecked(
-                        mCrossProfilePackages.contains(mSelectedApp.getPackageName()));
-            }
+            MenuItem crossProfileInteraction =
+                    menu.add(Menu.NONE, MENU_ITEM_ALLOW_CROSS_PROFILE_INTERACTION, Menu.NONE,
+                            R.string.allow_cross_profile_interaction);
+            crossProfileInteraction.setCheckable(true);
+            crossProfileInteraction.setChecked(
+                    mCrossProfilePackages.contains(mSelectedApp.getPackageName()));
 
-            // TODO: If we implement God Mode (i.e. Shelter as device owner), we should
-            // TODO: use two different lists to store auto freeze apps because we'll be
-            // TODO: able to freeze apps in main profile.
             MenuItem autoFreeze = menu.add(Menu.NONE, MENU_ITEM_AUTO_FREEZE, Menu.NONE, R.string.auto_freeze);
             autoFreeze.setCheckable(true);
             autoFreeze.setChecked(
@@ -316,15 +300,10 @@ public class AppListFragment extends BaseFragment {
         }
 
         if (!mSelectedApp.isSystem()) {
-            // We can't uninstall system apps in both cases
-            // but we'll be able to "freeze" them
             menu.add(Menu.NONE, MENU_ITEM_UNINSTALL, Menu.NONE, R.string.uninstall_app);
         }
 
         if (menu.size() > 0) {
-            // Only set title when the menu is not empty
-            // this ensures that no menu will be shown
-            // if no operation available
             menu.setHeaderTitle(
                     getString(R.string.app_context_menu_title, mSelectedApp.getLabel()));
         }
@@ -337,8 +316,6 @@ public class AppListFragment extends BaseFragment {
         switch (item.getItemId()) {
             case MENU_ITEM_CLONE:
                 if (Utility.isMIUI() && !mSelectedApp.isSystem()) {
-                    // Cannot clone non-system apps on MIUI
-                    // Keep this variable intact when showing the dialog
                     final ApplicationInfoWrapper selectedApp = mSelectedApp;
                     AlertDialog dialog = new AlertDialog.Builder(getContext())
                             .setMessage(R.string.miui_cannot_clone)
@@ -348,7 +325,7 @@ public class AppListFragment extends BaseFragment {
                                     (diag, button) ->
                                             installOrUninstall(selectedApp, true))
                             .create();
-                    
+
                     SecureActivity.secureDialog(dialog);
                     dialog.show();
                 } else {
@@ -379,9 +356,6 @@ public class AppListFragment extends BaseFragment {
                 refresh();
                 return true;
             case MENU_ITEM_LAUNCH:
-                // LAUNCH and UNFREEZE_AND_LAUNCH share the same ID
-                // because the implementation of UNFREEZE_AND_LAUNCH in DummyActivity
-                // will work for both
                 Intent intent = new Intent(DummyActivity.UNFREEZE_AND_LAUNCH);
                 intent.setComponent(new ComponentName(getContext(), DummyActivity.class));
                 intent.putExtra("packageName", mSelectedApp.getPackageName());
@@ -407,7 +381,6 @@ public class AppListFragment extends BaseFragment {
                     if (mService.setCrossProfileWidgetProviderEnabled(mSelectedApp.getPackageName(), newState)) {
                         item.setChecked(newState);
 
-                        // Update the cached list of all cross-profile widget providers
                         if (newState) {
                             mCrossProfileWidgetProviders.add(mSelectedApp.getPackageName());
                         } else {
@@ -466,14 +439,13 @@ public class AppListFragment extends BaseFragment {
             String message = getString(isInstall ? R.string.clone_success : R.string.uninstall_success);
             message = String.format(message, app.getLabel());
             Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
-            LocalBroadcastManager.getInstance(getContext())
-                    .sendBroadcast(new Intent(BROADCAST_REFRESH));
+            Intent intent = new Intent(BROADCAST_REFRESH);
+            intent.setPackage(getContext().getPackageName());
+            getContext().sendBroadcast(intent);
         } else if (result == ShelterService.RESULT_CANNOT_INSTALL_SYSTEM_APP) {
             Toast.makeText(getContext(),
                     getString(isInstall ? R.string.clone_fail_system_app :
                             R.string.uninstall_fail_system_app), Toast.LENGTH_SHORT).show();
         }
     }
-
-
-}
+            }
