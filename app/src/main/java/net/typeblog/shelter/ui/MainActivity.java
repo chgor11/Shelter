@@ -563,7 +563,7 @@ public class MainActivity extends SecureActivity {
         } else {
             return super.onOptionsItemSelected(item);
         }
-
+    }
     private void onApkSelected(Uri uri) {
         if (uri == null) return;
         UriForwardProxy proxy = new UriForwardProxy(getApplicationContext(), uri);
