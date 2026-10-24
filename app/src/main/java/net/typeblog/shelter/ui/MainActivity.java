@@ -28,7 +28,6 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.SearchView;
 import androidx.fragment.app.Fragment;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.viewpager2.adapter.FragmentStateAdapter;
 import androidx.viewpager2.widget.ViewPager2;
 
@@ -490,8 +489,8 @@ public class MainActivity extends SecureActivity {
             public boolean onQueryTextChange(String newText) {
                 Intent intent = new Intent(BROADCAST_SEARCH_FILTER_CHANGED);
                 intent.putExtra("text", newText.toLowerCase().trim());
-                LocalBroadcastManager.getInstance(MainActivity.this)
-                        .sendBroadcast(intent);
+                intent.setPackage(getPackageName());
+                sendBroadcast(intent);
                 return true;
             }
         });
@@ -501,8 +500,9 @@ public class MainActivity extends SecureActivity {
     @Override
     public void onContextMenuClosed(Menu menu) {
         super.onContextMenuClosed(menu);
-        LocalBroadcastManager.getInstance(this)
-                .sendBroadcast(new Intent(BROADCAST_CONTEXT_MENU_CLOSED));
+        Intent intent = new Intent(BROADCAST_CONTEXT_MENU_CLOSED);
+        intent.setPackage(getPackageName());
+        sendBroadcast(intent);
     }
 
     @Override
@@ -530,12 +530,14 @@ public class MainActivity extends SecureActivity {
             mSelectApk.launch(null);
             return true;
         } else if (itemId == R.id.main_menu_show_all) {
-            Runnable update = () -> {
-                mShowAll = !item.isChecked();
-                item.setChecked(mShowAll);
-                LocalBroadcastManager.getInstance(this)
-                        .sendBroadcast(new Intent(AppListFragment.BROADCAST_REFRESH));
-            };
+            } else if (itemId == R.id.main_menu_show_all) {
+                Runnable update = () -> {
+                    mShowAll = !item.isChecked();
+                    item.setChecked(mShowAll);
+                    Intent refreshIntent = new Intent(AppListFragment.BROADCAST_REFRESH);
+                    refreshIntent.setPackage(getPackageName());
+                    sendBroadcast(refreshIntent);
+                };
             if (!item.isChecked()) {
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setMessage(R.string.show_all_warning)
