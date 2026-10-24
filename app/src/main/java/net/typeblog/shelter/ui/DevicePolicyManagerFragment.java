@@ -53,8 +53,6 @@ import net.typeblog.shelter.util.SecurityPolicyChangeManager;
 public class DevicePolicyManagerFragment
         extends PreferenceFragmentCompat {
 
-    private static final int REQUEST_POLICY_AUTH = 9001;
-
     private static final String PREF_DEVICE_LOCK_DELAY =
             "device_lock_delay";
 
@@ -458,9 +456,8 @@ public class DevicePolicyManagerFragment
              * Fingerprint and Face Unlock must not authorize this
              * security-policy transaction.
              *
-             * Successful authorization is accepted only when the
-             * Android device-credential confirmation activity returns
-             * RESULT_OK.
+             * Successful authorization is accepted only via
+             * onAuthenticationSucceeded().
              *
              * This is intentionally the same authentication mechanism
              * used when opening Shelter Settings.
