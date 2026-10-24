@@ -256,14 +256,18 @@ public class FileShuttleService extends Service {
     }
 
     // Fallback method for thumbnail loading: just load from disk, but load a scaled down version
-    private ParcelFileDescriptor loadBitmapThumbnail(String path, Point sizeHint) {
-        Bitmap bmp = Utility.decodeSampledBitmap(path, sizeHint.x, sizeHint.y);
-
-        if (bmp == null) {
+    private ParcelFileDescriptor loadVideoThumbnail(String fullPath) {
+        try {
+            Bitmap bmp = ThumbnailUtils.createVideoThumbnail(
+                    new File(fullPath),
+                    new Size(512, 384),  // equivalent of the old MINI_KIND
+                    null);
+            return bitmapToFd(bmp);
+        } catch (IOException e) {
+            // Thumbnail generation failed; return null so DocumentsUI
+            // falls back to its default icon for this document.
             return null;
         }
-
-        return bitmapToFd(bmp);
     }
 
     private ParcelFileDescriptor bitmapToFd(Bitmap bmp) {
@@ -303,5 +307,4 @@ public class FileShuttleService extends Service {
                     new String[]{mimeType},
                     null);
         }
-    }
     }
