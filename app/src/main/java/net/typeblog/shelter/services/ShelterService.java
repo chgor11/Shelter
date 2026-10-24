@@ -245,23 +245,11 @@ public class ShelterService extends Service {
                 intent.putExtra("callback", callbackExtra);
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 AuthenticationUtility.signIntent(intent);
-
-                if (mStartActivityProxy != null)
-                    if (mStartActivityProxy != null) {
-
-                        try {
-                    
-                            mStartActivityProxy.startActivity(intent);
-                    
-                    
-                        } catch (Exception e) {
-                    
-                    
-                            callback.callback(
-                                    Activity.RESULT_CANCELED
-                            );
-                    
-                        }
+                if (mStartActivityProxy != null) {
+                    try {
+                        mStartActivityProxy.startActivity(intent);
+                    } catch (Exception e) {
+                        callback.callback(Activity.RESULT_CANCELED);
                     }
             } else {
                 if (mIsProfileOwner) {
@@ -381,7 +369,7 @@ public class ShelterService extends Service {
         // all clients have disconnected.
         // This helps to ensure no notification is left when the Shelter activity
         // is closed.
-        stopForeground(true);
+        stopForeground(STOP_FOREGROUND_REMOVE);
         return false;
     }
 
