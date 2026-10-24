@@ -245,17 +245,6 @@ public class FileShuttleService extends Service {
         }
     }
 
-    // Modern replacement for ThumbnailUtils.createVideoThumbnail(String, int)
-    // and MediaStore.Video.Thumbnails.MINI_KIND (both deprecated in API 29).
-    private ParcelFileDescriptor loadVideoThumbnail(String fullPath) {
-        Bitmap bmp = ThumbnailUtils.createVideoThumbnail(
-                new File(fullPath),
-                new Size(512, 384),  // equivalent of the old MINI_KIND
-                null);
-        return bitmapToFd(bmp);
-    }
-
-    // Fallback method for thumbnail loading: just load from disk, but load a scaled down version
     private ParcelFileDescriptor loadVideoThumbnail(String fullPath) {
         try {
             Bitmap bmp = ThumbnailUtils.createVideoThumbnail(
@@ -268,6 +257,17 @@ public class FileShuttleService extends Service {
             // falls back to its default icon for this document.
             return null;
         }
+    }
+
+    // Fallback method for thumbnail loading: just load from disk, but load a scaled down version
+    private ParcelFileDescriptor loadBitmapThumbnail(String path, Point sizeHint) {
+        Bitmap bmp = Utility.decodeSampledBitmap(path, sizeHint.x, sizeHint.y);
+
+        if (bmp == null) {
+            return null;
+        }
+
+        return bitmapToFd(bmp);
     }
 
     private ParcelFileDescriptor bitmapToFd(Bitmap bmp) {
