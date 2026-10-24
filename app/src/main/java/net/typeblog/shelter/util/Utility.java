@@ -7,6 +7,7 @@ import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.PackagePolicy;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -238,10 +239,16 @@ public class Utility {
         // Block contacts searching optionally
         boolean blockContactsSearch =
                 SettingsManager.getInstance().getBlockContactsSearchingEnabled();
-        int contactsPolicy = blockContactsSearch
-                ? DevicePolicyManager.CONTACTS_ACCESS_POLICY_NONE
-                : DevicePolicyManager.CONTACTS_ACCESS_POLICY_ALL;
-        manager.setManagedProfileContactsAccessPolicy(contactsPolicy);
+
+        if (blockContactsSearch) {
+            PackagePolicy policy = new PackagePolicy(
+                    PackagePolicy.PACKAGE_POLICY_ALLOWLIST,
+                    Collections.emptyList()
+            );
+            manager.setManagedProfileContactsAccessPolicy(policy);
+        } else {
+            manager.setManagedProfileContactsAccessPolicy(null);
+        }
     }
 
     public static void enforceUserRestrictions(Context context) {
@@ -518,6 +525,11 @@ public class Utility {
     // Check if SYSTEM_ALERT_WINDOW is granted
     public static boolean checkSystemAlertPermission(Context context) {
         return checkSpecialAccessPermission(context, AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW);
+    }
+
+    // Check if all file access r/w is granted
+    public static boolean checkAllFileAccessPermission() {
+        return Environment.isExternalStorageManager();
     }
 
     // Check special access permission through AppOps
