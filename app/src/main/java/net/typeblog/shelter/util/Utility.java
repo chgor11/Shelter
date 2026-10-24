@@ -1,6 +1,5 @@
 package net.typeblog.shelter.util;
 
-import android.annotation.TargetApi;
 import android.app.AppOpsManager;
 import android.app.Notification;
 import android.app.NotificationChannel;
@@ -28,7 +27,6 @@ import android.os.Environment;
 import android.os.UserManager;
 import android.os.Bundle;
 import android.provider.MediaStore;
-import android.provider.Settings;
 import android.widget.Toast;
 
 import androidx.activity.result.contract.ActivityResultContract;
@@ -243,7 +241,7 @@ public class Utility {
         if (blockContactsSearch) {
             PackagePolicy policy = new PackagePolicy(
                     PackagePolicy.PACKAGE_POLICY_ALLOWLIST,
-                    Collections.emptyList()
+                    Collections.emptySet()
             );
             manager.setManagedProfileContactsAccessPolicy(policy);
         } else {
@@ -379,11 +377,6 @@ public class Utility {
         }
     }
 
-    // From <https://stackoverflow.com/questions/3035692/how-to-convert-a-drawable-to-a-bitmap>
-    public static Bitmap drawableToBitmap(Drawable drawable) {
-        if (drawable instanceof BitmapDrawable) {
-            return ((BitmapDrawable)drawable).getBitmap();
-        }
 
         int width = drawable.getIntrinsicWidth();
         width = width > 0 ? width : 1;
@@ -434,7 +427,7 @@ public class Utility {
             shortcutManager.requestPinShortcut(info,
                     PendingIntent.getBroadcast(context, 0, addIntent, PendingIntent.FLAG_IMMUTABLE).getIntentSender());
         } else {
-        Toast.makeText(context, context.getString(R.string.unsupported_launcher), Toast.LENGTH_LONG).show();
+        Toast.makeText(context, R.string.unsupported_launcher, Toast.LENGTH_LONG).show();
         }
     }
 
@@ -606,13 +599,8 @@ public class Utility {
                         false
                 );
     
-        boolean screenCaptureDisabled =
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.M
-                        || manager.getScreenCaptureDisabled(adminComponent);
-    
-        boolean backupDisabled =
-                Build.VERSION.SDK_INT < Build.VERSION_CODES.O
-                        || !manager.isBackupServiceEnabled(adminComponent);
+        boolean screenCaptureDisabled = manager.getScreenCaptureDisabled(adminComponent);
+        boolean backupDisabled = !manager.isBackupServiceEnabled(adminComponent);
     
         return debuggingDisabled
                 && screenCaptureDisabled
