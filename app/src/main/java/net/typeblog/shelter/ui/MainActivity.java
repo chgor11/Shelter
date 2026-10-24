@@ -530,14 +530,14 @@ public class MainActivity extends SecureActivity {
             mSelectApk.launch(null);
             return true;
         } else if (itemId == R.id.main_menu_show_all) {
-            } else if (itemId == R.id.main_menu_show_all) {
-                Runnable update = () -> {
-                    mShowAll = !item.isChecked();
-                    item.setChecked(mShowAll);
-                    Intent refreshIntent = new Intent(AppListFragment.BROADCAST_REFRESH);
-                    refreshIntent.setPackage(getPackageName());
-                    sendBroadcast(refreshIntent);
-                };
+            Runnable update = () -> {
+                mShowAll = !item.isChecked();
+                item.setChecked(mShowAll);
+                Intent refreshIntent = new Intent(AppListFragment.BROADCAST_REFRESH);
+                refreshIntent.setPackage(getPackageName());
+                sendBroadcast(refreshIntent);
+            };
+
             if (!item.isChecked()) {
                 AlertDialog dialog = new AlertDialog.Builder(this)
                         .setMessage(R.string.show_all_warning)
@@ -548,7 +548,7 @@ public class MainActivity extends SecureActivity {
                                 R.string.first_run_alert_cancel,
                                 null)
                         .create();
-                
+
                 SecureActivity.secureDialog(dialog);
                 dialog.show();
             } else {
@@ -564,6 +564,7 @@ public class MainActivity extends SecureActivity {
             return super.onOptionsItemSelected(item);
         }
     }
+
     private void onApkSelected(Uri uri) {
         if (uri == null) return;
         UriForwardProxy proxy = new UriForwardProxy(getApplicationContext(), uri);
