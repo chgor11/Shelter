@@ -26,11 +26,8 @@ import net.typeblog.shelter.util.Utility;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 // A service to forward file information across the profile boundary
 public class FileShuttleService extends Service {
@@ -47,9 +44,9 @@ public class FileShuttleService extends Service {
         }
 
         @Override
-        public List<Map<String, Serializable>> loadFiles(String path) {
+        public List<FileShuttleMeta> loadFiles(String path) {
             resetSuicideTask();
-            ArrayList<Map<String, Serializable>> ret = new ArrayList<>();
+            ArrayList<FileShuttleMeta> ret = new ArrayList<>();
             File f = new File(resolvePath(path));
             File[] children = f.listFiles();
             if (children != null) {
@@ -61,39 +58,43 @@ public class FileShuttleService extends Service {
         }
 
         @Override
-        public Map<String, Serializable> loadFileMeta(String path) {
+        public FileShuttleMeta loadFileMeta(String path) {
             resetSuicideTask();
             File f = new File(resolvePath(path));
-            HashMap<String, Serializable> map = new HashMap<>();
-            map.put(DocumentsContract.Document.COLUMN_DOCUMENT_ID, f.getAbsolutePath());
+
+            final String documentId = f.getAbsolutePath();
+
+            final String displayName;
             if (f.equals(Environment.getExternalStorageDirectory())) {
                 // Show "Shelter" as the name of the root directory
-                map.put(DocumentsContract.Document.COLUMN_DISPLAY_NAME, getString(R.string.app_name));
+                displayName = getString(R.string.app_name);
             } else {
-                map.put(DocumentsContract.Document.COLUMN_DISPLAY_NAME, f.getName());
+                displayName = f.getName();
             }
-            map.put(DocumentsContract.Document.COLUMN_SIZE, f.length());
-            map.put(DocumentsContract.Document.COLUMN_LAST_MODIFIED, f.lastModified());
+
+            final long size = f.length();
+            final long lastModified = f.lastModified();
+
+            final String mimeType;
+            final int flags;
 
             if (f.isDirectory()) {
-                map.put(DocumentsContract.Document.COLUMN_MIME_TYPE, DocumentsContract.Document.MIME_TYPE_DIR);
-                map.put(DocumentsContract.Document.COLUMN_FLAGS,
-                        DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE |
-                                DocumentsContract.Document.FLAG_SUPPORTS_DELETE);
+                mimeType = DocumentsContract.Document.MIME_TYPE_DIR;
+                flags = DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE
+                        | DocumentsContract.Document.FLAG_SUPPORTS_DELETE;
             } else {
-                String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(
+                final String detected = MimeTypeMap.getSingleton().getMimeTypeFromExtension(
                         Utility.getFileExtension(f.getAbsolutePath()));
-                int flags = DocumentsContract.Document.FLAG_SUPPORTS_DELETE;
-                if (mime != null && (mime.startsWith("image/") || mime.startsWith("video/"))) {
-                    flags |= DocumentsContract.Document.FLAG_SUPPORTS_THUMBNAIL;
+                int computedFlags = DocumentsContract.Document.FLAG_SUPPORTS_DELETE;
+                if (detected != null
+                        && (detected.startsWith("image/") || detected.startsWith("video/"))) {
+                    computedFlags |= DocumentsContract.Document.FLAG_SUPPORTS_THUMBNAIL;
                 }
-                if (mime == null) {
-                    mime = "application/unknown";
-                }
-                map.put(DocumentsContract.Document.COLUMN_MIME_TYPE, mime);
-                map.put(DocumentsContract.Document.COLUMN_FLAGS, flags);
+                mimeType = detected != null ? detected : "application/unknown";
+                flags = computedFlags;
             }
-            return map;
+
+            return new FileShuttleMeta(documentId, displayName, size, lastModified, mimeType, flags);
         }
 
         @Override
