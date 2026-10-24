@@ -263,7 +263,8 @@ public class DummyActivity extends SecureActivity {
 
             switch (status) {
                 case PackageInstaller.STATUS_PENDING_USER_ACTION:
-                    startActivity((Intent) intent.getExtras().get(Intent.EXTRA_INTENT));
+                    Intent next = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent.class);
+                    if (next != null) startActivity(next);
                     break;
                 case PackageInstaller.STATUS_SUCCESS:
                     appInstallFinished(Activity.RESULT_OK);
@@ -272,16 +273,6 @@ public class DummyActivity extends SecureActivity {
                     appInstallFinished(Activity.RESULT_CANCELED);
                     break;
             }
-        }
-    }
-
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == REQUEST_INSTALL_PACKAGE) {
-            appInstallFinished(resultCode);
         }
     }
 
@@ -541,84 +532,35 @@ public class DummyActivity extends SecureActivity {
             uri = Uri.fromParts("package", getIntent().getStringExtra("package"), null);
         }
         StrictMode.VmPolicy policy = StrictMode.getVmPolicy();
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O || getIntent().hasExtra("direct_install_apk")) {
-            if (getIntent().hasExtra("apk")) {
-                // I really have no idea about why the "package:" uri do not work
-                // after Android O, anyway we fall back to using the apk path...
-                // Since I have plan to support pre-O in later versions, I keep this
-                // branch in case that we reduce minSDK in the future.
-                uri = Uri.fromFile(new File(getIntent().getStringExtra("apk")));
-            } else if (getIntent().hasExtra("direct_install_apk")) {
-                // Directly install an APK inside the profile
-                // The APK will be an Uri from our own FileProviderProxy
-                // which points to an opened Fd in another profile.
-                // We must close the Fd when we finish.
-                uri = getIntent().getParcelableExtra("direct_install_apk");
-            }
-
-            // A permissive VmPolicy must be set to work around
-            // the limitation on cross-application Uri
-            StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
+        if (getIntent().hasExtra("apk")) {
+            // I really have no idea about why the "package:" uri do not work
+            // after Android O, anyway we fall back to using the apk path...
+            // Since I have plan to support pre-O in later versions, I keep this
+            // branch in case that we reduce minSDK in the future.
+            uri = Uri.fromFile(new File(getIntent().getStringExtra("apk")));
+        } else if (getIntent().hasExtra("direct_install_apk")) {
+            // Directly install an APK inside the profile
+            // The APK will be an Uri from our own FileProviderProxy
+            // which points to an opened Fd in another profile.
+            // We must close the Fd when we finish.
+            uri = getIntent().getParcelableExtra("direct_install_apk", Uri.class);
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-        
-            try {
-                actionInstallPackageQ(
-                        uri,
-                        getIntent().getStringArrayExtra("split_apks")
-                );
-            } catch (Exception e) {
+        // A permissive VmPolicy must be set to work around
+        // the limitation on cross-application Uri
+        StrictMode.setVmPolicy(new StrictMode.VmPolicy.Builder().build());
 
-                appInstallFinished(
-                        RESULT_CANCELED
-                );
+        try {
+            actionInstallPackageQ(
+                    uri,
+                    getIntent().getStringArrayExtra("split_apks")
+            );
+        } catch (Exception e) {
 
-            }
-
-        } else {
-
-            Intent intent =
-                    new Intent(
-                            Intent.ACTION_INSTALL_PACKAGE,
-                            uri
-                    );
-
-            intent.putExtra(
-                    Intent.EXTRA_INSTALLER_PACKAGE_NAME,
-                    getPackageName()
+            appInstallFinished(
+                    RESULT_CANCELED
             );
 
-            intent.putExtra(
-                    Intent.EXTRA_NOT_UNKNOWN_SOURCE,
-                    true
-            );
-
-            intent.putExtra(
-                    Intent.EXTRA_RETURN_RESULT,
-                    true
-            );
-
-            intent.addFlags(
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-            );
-
-            try {
-
-                startActivityForResult(
-                        intent,
-                        REQUEST_INSTALL_PACKAGE
-                );
-
-            } catch (Exception e) {
-
-                setResult(
-                        RESULT_CANCELED
-                );
-
-                finish();
-        
-            }
         }
 
         // Restore the VmPolicy anyway
@@ -706,9 +648,7 @@ public class DummyActivity extends SecureActivity {
     }
 
     private void actionUninstallPackage() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             actionUninstallPackageQ();
-            return;
         }
 
         Uri uri = Uri.fromParts("package", getIntent().getStringExtra("package"), null);
