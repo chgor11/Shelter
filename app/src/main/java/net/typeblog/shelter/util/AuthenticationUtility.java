@@ -1,6 +1,8 @@
 package net.typeblog.shelter.util;
 
 import android.content.Intent;
+import android.os.Bundle;
+import androidx.annotation.Nullable;
 import android.app.admin.DevicePolicyManager;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -76,6 +78,13 @@ public class AuthenticationUtility {
             return timestamp - intentTimestamp < 2 * 1000 &&
                     sign(key, intentTimestamp).equals(intent.getStringExtra("signature"));
         }
+    }
+
+    public static void signParentKeyguardPolicyIntent(Intent intent) {
+        String key = LocalStorageManager.getInstance().getString(LocalStorageManager.PREF_AUTH_KEY);
+        if (key == null || intent == null || intent.getAction() == null)
+            throw new IllegalStateException("Missing auth key or intent");
+        intent.putExtra("policy_payload_signature", signPayload(key, policyPayload(intent)));
     }
 
     public static boolean checkParentKeyguardPolicyIntent(Intent intent) {
