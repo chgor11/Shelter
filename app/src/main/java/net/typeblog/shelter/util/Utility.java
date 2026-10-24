@@ -62,17 +62,7 @@ public class Utility {
 
     // Polyfill for String.join
     public static String stringJoin(String delimiter, String[] list) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return String.join(delimiter, list);
-        } else {
-            if (list.length == 0) return "";
-            StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < list.length - 1; i++) {
-                sb.append(list[i]).append(delimiter);
-            }
-            sb.append(list[list.length - 1]);
-            return sb.toString();
-        }
+        return String.join(delimiter, list);
     }
 
     // Affiliate an Intent to another profile (i.e. the Work profile that we manage)
@@ -246,9 +236,7 @@ public class Utility {
 
 
         // Block contacts searching optionally
-        manager.setCrossProfileContactsSearchDisabled(adminComponent,
-                SettingsManager.getInstance().getBlockContactsSearchingEnabled());
-
+        SettingsManager.getInstance().getBlockContactsSearchingEnabled()
         manager.setProfileEnabled(adminComponent);
     }
 
@@ -303,14 +291,6 @@ public class Utility {
                 UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
         );
     
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-            manager.setSecureSetting(
-                    adminComponent,
-                    Settings.Secure.INSTALL_NON_MARKET_APPS,
-                    "1"
-            );
-        }
-    
         manager.clearUserRestriction(
                 adminComponent,
                 UserManager.ALLOW_PARENT_PROFILE_APP_LINKING
@@ -323,64 +303,56 @@ public class Utility {
         );
     
         // Disable screenshots and screen recording in the Work Profile.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            manager.setScreenCaptureDisabled(
-                    adminComponent,
-                    true
-            );
-        }
+        manager.setScreenCaptureDisabled(
+                adminComponent,
+                true
+        );
 
         // Disable backup and restore for the Work Profile.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.setBackupServiceEnabled(
-                    adminComponent,
-                    false
-            );
-        }
+        manager.setBackupServiceEnabled(
+                adminComponent,
+                false
+        );
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            manager.setCrossProfilePackages(
-                    adminComponent,
-                    Collections.emptySet()
-            );
-        }
+        manager.setCrossProfilePackages(
+                adminComponent,
+                Collections.emptySet()
+        );
 
         // Control clipboard export from Work Profile to Personal Profile.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            boolean allowWorkToPersonalClipboard =
-                    SettingsManager.getInstance()
-                            .getWorkToPersonalClipboardEnabled();
-        
-            if (allowWorkToPersonalClipboard) {
-                manager.clearUserRestriction(
-                        adminComponent,
-                        UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
-                );
-            } else {
-                manager.addUserRestriction(
-                        adminComponent,
-                        UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
-                );
-            }
+        boolean allowWorkToPersonalClipboard =
+                SettingsManager.getInstance()
+                        .getWorkToPersonalClipboardEnabled();
 
-            // Allow changing app controls in Work Profile only when explicitly enabled.
-            // The preference defaults to false, so this restriction is applied by default
-            // when the Work Profile is first provisioned.
-            boolean allowWorkProfileAppsControl =
-                    SettingsManager.getInstance()
-                            .getWorkProfileAppsControlEnabled();
+        if (allowWorkToPersonalClipboard) {
+            manager.clearUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
+            );
+        } else {
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_CROSS_PROFILE_COPY_PASTE
+            );
+        }
 
-            if (allowWorkProfileAppsControl) {
-                manager.clearUserRestriction(
-                        adminComponent,
-                        UserManager.DISALLOW_APPS_CONTROL
-                );
-            } else {
-                manager.addUserRestriction(
-                        adminComponent,
-                        UserManager.DISALLOW_APPS_CONTROL
-                );
-            }
+        // Allow changing app controls in Work Profile only when explicitly enabled.
+        // The preference defaults to false, so this restriction is applied by default
+        // when the Work Profile is first provisioned.
+        boolean allowWorkProfileAppsControl =
+                SettingsManager.getInstance()
+                        .getWorkProfileAppsControlEnabled();
+
+        if (allowWorkProfileAppsControl) {
+            manager.clearUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_APPS_CONTROL
+            );
+        } else {
+            manager.addUserRestriction(
+                    adminComponent,
+                    UserManager.DISALLOW_APPS_CONTROL
+            );
         }
     }
 
@@ -439,32 +411,19 @@ public class Utility {
     }
 
     public static void createLauncherShortcut(Context context, Intent launchIntent, Icon icon, String id, String label) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
-
-            if (shortcutManager.isRequestPinShortcutSupported()) {
-                ShortcutInfo info = new ShortcutInfo.Builder(context, id)
-                        .setIntent(launchIntent)
-                        .setIcon(icon)
-                        .setShortLabel(label)
-                        .setLongLabel(label)
-                        .build();
-                Intent addIntent = shortcutManager.createShortcutResultIntent(info);
-                shortcutManager.requestPinShortcut(info,
-                        PendingIntent.getBroadcast(context, 0, addIntent, PendingIntent.FLAG_IMMUTABLE).getIntentSender());
-            } else {
-                // TODO: Maybe implement this for launchers without pin shortcut support?
-                // TODO: Should be the same with the fallback for Android < O
-                // for now just show unsupported
-                Toast.makeText(context, context.getString(R.string.unsupported_launcher), Toast.LENGTH_LONG).show();
-            }
+        ShortcutManager shortcutManager = context.getSystemService(ShortcutManager.class);
+        if (shortcutManager.isRequestPinShortcutSupported()) {
+            ShortcutInfo info = new ShortcutInfo.Builder(context, id)
+                    .setIntent(launchIntent)
+                    .setIcon(icon)
+                    .setShortLabel(label)
+                    .setLongLabel(label)
+                    .build();
+            Intent addIntent = shortcutManager.createShortcutResultIntent(info);
+            shortcutManager.requestPinShortcut(info,
+                    PendingIntent.getBroadcast(context, 0, addIntent, PendingIntent.FLAG_IMMUTABLE).getIntentSender());
         } else {
-            Intent shortcutIntent = new Intent("com.android.launcher.action.INSTALL_SHORTCUT");
-            shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, launchIntent);
-            shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_NAME, label);
-            shortcutIntent.putExtra(Intent.EXTRA_SHORTCUT_ICON, drawableToBitmap(icon.loadDrawable(context)));
-            context.sendBroadcast(shortcutIntent);
-            Toast.makeText(context, R.string.shortcut_create_success, Toast.LENGTH_SHORT).show();
+        Toast.makeText(context, context.getString(R.string.unsupported_launcher), Toast.LENGTH_LONG).show();
         }
     }
 
@@ -557,16 +516,10 @@ public class Utility {
         return checkSpecialAccessPermission(context, AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW);
     }
 
-    // Check if all file access r/w is granted
-    @TargetApi(Build.VERSION_CODES.R)
-    public static boolean checkAllFileAccessPermission() {
-        return Environment.isExternalStorageManager();
-    }
-
     // Check special access permission through AppOps
     public static boolean checkSpecialAccessPermission(Context context, String name) {
         AppOpsManager appops = context.getSystemService(AppOpsManager.class);
-        int mode = appops.checkOpNoThrow(name, android.os.Process.myUid(), context.getPackageName());
+        int mode = appops.unsafeCheckOpNoThrow(name, android.os.Process.myUid(), context.getPackageName());
         return mode == AppOpsManager.MODE_ALLOWED;
     }
 
@@ -587,31 +540,11 @@ public class Utility {
     }
 
     public static Notification buildNotification(Context context, boolean important, String ticker, String title, String desc, int icon) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            return buildNotificationOreo(context, important, ticker, title, desc, icon);
-        } else {
-            return buildNotificationLollipop(context, important, ticker, title, desc, icon);
-        }
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private static Notification buildNotificationLollipop(Context context, boolean important, String ticker, String title, String desc, int icon) {
-        return new Notification.Builder(context)
-                .setTicker(ticker)
-                .setContentTitle(title)
-                .setContentText(desc)
-                .setSmallIcon(icon)
-                .setPriority(important ? Notification.PRIORITY_MAX : Notification.PRIORITY_MIN)
-                .build();
-    }
-
-    @TargetApi(Build.VERSION_CODES.O)
-    private static Notification buildNotificationOreo(Context context, boolean important, String ticker, String title, String desc, int icon) {
         String id = important ? NOTIFICATION_CHANNEL_IMPORTANT : NOTIFICATION_CHANNEL_ID;
-        // Android O and later: Notification Channel
         NotificationManager nm = context.getSystemService(NotificationManager.class);
-        if (nm.getNotificationChannel(id) == null) {
-            NotificationChannel chan = new NotificationChannel(
+        NotificationChannel chan = nm.getNotificationChannel(id);
+        if (chan == null) {
+            chan = new NotificationChannel(
                     id,
                     important ? context.getString(R.string.notifications_important)
                             : context.getString(R.string.app_name),
@@ -620,8 +553,6 @@ public class Utility {
             nm.createNotificationChannel(chan);
         }
 
-        // Disable everything: do not disturb the user
-        NotificationChannel chan = nm.getNotificationChannel(id);
         if (!important) {
             chan.enableVibration(false);
             chan.enableLights(false);
@@ -632,7 +563,6 @@ public class Utility {
         }
         nm.createNotificationChannel(chan);
 
-        // Create foreground notification to keep the service alive
         return new Notification.Builder(context, id)
                 .setTicker(ticker)
                 .setContentTitle(title)
